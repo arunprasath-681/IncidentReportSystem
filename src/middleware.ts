@@ -19,8 +19,13 @@ export async function middleware(request: NextRequest) {
         secret: process.env.NEXTAUTH_SECRET,
     });
 
+    console.log("[Middleware] Path:", pathname);
+    console.log("[Middleware] Secret configured:", !!process.env.NEXTAUTH_SECRET);
+    console.log("[Middleware] Token found:", !!token);
+
     // Redirect to login if not authenticated
     if (!token) {
+        console.log("[Middleware] No token, redirecting to login");
         const loginUrl = new URL("/login", request.url);
         loginUrl.searchParams.set("callbackUrl", pathname);
         return NextResponse.redirect(loginUrl);
