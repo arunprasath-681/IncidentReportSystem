@@ -1,0 +1,92 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { getIncidentById, updateIncident } from "@/lib/sheets/incidents";
+import { getCasesByIncident, areAllCasesFinalized } from "@/lib/sheets/cases";
+
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const session = await auth();
+        if (!session?.user?.email || !session.accessToken) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const { id } = await params;
+        const incident = await getIncidentById(session.accessToken, id);
+
+        if (!incident) {
+            return NextResponse.json({ error: "Incident not found" }, { status: 404 });
+        }
+
+        // Get associated cases
+        const cases = await getCasesByIncident(session.accessToken, id);
+
+        // Check access: complainant can only view their own incidents
+        const isComplainant = incident.complainant_id.toLowerCase() === session.user.email.toLowerCase();
+        const isInvestigatorOrAbove = ["investigator", "approver", "admin"].includes(session.user.role);
+        const isReportedIndividual = cases.some(
+            (c) => c.reported_individual_id.toLowerCase() === session.user.email.toLowerCase()
+        );
+
+        if (!isComplainant && !isInvestigatorOrAbove && !isReportedIndividual) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        return NextResponse.json({ incident, cases });
+    } catch (error) {
+        console.error("Error fetching incident:", error);
+        return NextResponse.json(
+            { error: "Failed to fetch incident" },
+            { status: 500 }
+        );
+    }
+}
+
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const session = await auth();
+        if (!session?.user?.email || !session.accessToken) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        // Only investigators and above can update incidents
+        if (!["investigator", "approver", "admin"].includes(session.user.role)) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        const { id } = await params;
+        const body = await request.json();
+
+        // Check if all cases are finalized, if so, close the incident
+        if (body.checkClosure) {
+            const allFinalized = await areAllCasesFinalized(session.accessToken, id);
+            if (allFinalized) {
+                body.status = "Closed";
+            }
+        }
+
+        const updatedIncident = await updateIncident(
+            session.accessToken,
+            id,
+            body,
+            session.user.email
+        );
+
+        if (!updatedIncident) {
+            return NextResponse.json({ error: "Incident not found" }, { status: 404 });
+        }
+
+        return NextResponse.json({ incident: updatedIncident });
+    } catch (error) {
+        console.error("Error updating incident:", error);
+        return NextResponse.json(
+            { error: "Failed to update incident" },
+            { status: 500 }
+        );
+    }
+}

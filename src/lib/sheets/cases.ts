@@ -1,0 +1,476 @@
+import { google } from "googleapis";
+import { getSpreadsheetId, parseRows, findRowIndex, formatDateForStorage, parseDateFromStorage } from "./client";
+import { v4 as uuidv4 } from "uuid";
+
+export type CaseStatus =
+    | "Pending Investigation"
+    | "Investigation Submitted"
+    | "Verdict Given"
+    | "Appealed"
+    | "Final Decision";
+
+export type CategoryOfOffence =
+    | "Breach of student code of conduct"
+    | "Breach of mentor code of conduct"
+    | "Breach of internship code of conduct";
+
+export type Verdict = "Guilty" | "Not Guilty";
+
+export interface Case {
+    case_id: string;
+    incident_id: string;
+    reported_individual_id: string;
+    squad: string;
+    campus: string;
+    category_of_offence: string;
+    sub_category_of_offence: string;
+    level_of_offence: string;
+    case_comments: string;
+    attachments: string; // JSON array
+    verdict: string;
+    punishment: string;
+    case_status: CaseStatus;
+    appeal_reason: string;
+    appeal_attachments: string; // JSON array
+    review_comments: string;
+    last_updated_by: string;
+    last_updated_at: string;
+    metadata_changelog: string; // JSON object for changelog
+}
+
+export interface CreateCaseInput {
+    incidentId: string;
+    reportedIndividualEmail: string;
+    squad: string;
+    campus: string;
+    createdBy: string;
+}
+
+// Sub-categories mapping
+export const SUB_CATEGORIES = {
+    "Breach of student code of conduct": [
+        "Behavioral Misconduct",
+        "Property and Resource Misuse",
+        "Academic Integrity Violation",
+        "Substance Abuse and Prohibited Activities",
+        "Safety and Security Violations",
+    ],
+    "Breach of internship code of conduct": [
+        "Professional Conduct and Workplace Behaviour",
+        "Attendance and Commitment",
+        "Confidentiality and Information Security",
+        "Unauthorised Use of Company Resources",
+        "Legal and Ethical Violations",
+    ],
+    "Breach of mentor code of conduct": ["Fraternization"],
+};
+
+function getSheetsClient(accessToken: string) {
+    const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET
+    );
+    oauth2Client.setCredentials({ access_token: accessToken });
+    return google.sheets({ version: "v4", auth: oauth2Client });
+}
+
+// Get headers from the sheet
+async function getSheetHeaders(
+    sheets: ReturnType<typeof getSheetsClient>,
+    sheetName: string
+): Promise<string[]> {
+    const spreadsheetId = getSpreadsheetId();
+    const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${sheetName}!1:1`,
+    });
+    return (response.data.values?.[0] as string[]) || [];
+}
+
+// Convert object to row based on actual sheet headers
+function objectToRowDynamic(headers: string[], obj: Record<string, unknown>): string[] {
+    return headers.map((header) => {
+        const value = obj[header];
+        if (value === null || value === undefined) return "";
+        if (typeof value === "object") return JSON.stringify(value);
+        return String(value);
+    });
+}
+
+// Create a new case
+export async function createCase(
+    accessToken: string,
+    input: CreateCaseInput
+): Promise<Case> {
+    const sheets = getSheetsClient(accessToken);
+    const spreadsheetId = getSpreadsheetId();
+
+    // Get actual headers from the sheet
+    const headers = await getSheetHeaders(sheets, "Cases");
+
+    const now = formatDateForStorage();
+    const newCase: Case = {
+        case_id: `CASE-${uuidv4()}`,
+        incident_id: input.incidentId,
+        reported_individual_id: input.reportedIndividualEmail,
+        squad: input.squad,
+        campus: input.campus,
+        category_of_offence: "",
+        sub_category_of_offence: "",
+        level_of_offence: "",
+        case_comments: "",
+        attachments: "[]",
+        verdict: "",
+        punishment: "",
+        case_status: "Pending Investigation",
+        appeal_reason: "",
+        appeal_attachments: "[]",
+        review_comments: "",
+        last_updated_by: input.createdBy,
+        last_updated_at: now,
+        metadata_changelog: JSON.stringify({
+            changelog: [
+                {
+                    action: "created",
+                    by: input.createdBy,
+                    at: now,
+                },
+            ],
+        }),
+    };
+
+    const row = objectToRowDynamic(headers, newCase as unknown as Record<string, unknown>);
+
+    await sheets.spreadsheets.values.append({
+        spreadsheetId,
+        range: `Cases!A:${String.fromCharCode(64 + headers.length)}`,
+        valueInputOption: "RAW",
+        insertDataOption: "INSERT_ROWS",
+        requestBody: {
+            values: [row],
+        },
+    });
+
+    return newCase;
+}
+
+// Get cases by incident
+export async function getCasesByIncident(
+    accessToken: string,
+    incidentId: string
+): Promise<Case[]> {
+    const sheets = getSheetsClient(accessToken);
+    const spreadsheetId = getSpreadsheetId();
+
+    const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "Cases!A:Z",
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return [];
+
+    const headers = rows[0] as string[];
+    const cases = parseRows<Case>(headers, rows.slice(1) as string[][]);
+
+    return cases.filter((c) => c.incident_id === incidentId);
+}
+
+// Get all cases (with filters)
+export async function getCases(
+    accessToken: string,
+    filters?: {
+        status?: CaseStatus;
+        campusCode?: string;
+        reportedIndividualEmail?: string;
+    }
+): Promise<Case[]> {
+    const sheets = getSheetsClient(accessToken);
+    const spreadsheetId = getSpreadsheetId();
+
+    const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "Cases!A:Z",
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return [];
+
+    const headers = rows[0] as string[];
+    let cases = parseRows<Case>(headers, rows.slice(1) as string[][]);
+
+    if (filters?.status) {
+        cases = cases.filter((c) => c.case_status === filters.status);
+    }
+
+    if (filters?.campusCode) {
+        cases = cases.filter((c) => c.campus === filters.campusCode);
+    }
+
+    if (filters?.reportedIndividualEmail) {
+        cases = cases.filter(
+            (c) => c.reported_individual_id?.toLowerCase() === filters.reportedIndividualEmail!.toLowerCase()
+        );
+    }
+
+    // Sort by last_updated_at descending (latest first)
+    cases.sort((a, b) =>
+        parseDateFromStorage(b.last_updated_at).getTime() - parseDateFromStorage(a.last_updated_at).getTime()
+    );
+
+    return cases;
+}
+
+// Get single case by ID
+export async function getCaseById(
+    accessToken: string,
+    caseId: string
+): Promise<Case | null> {
+    const sheets = getSheetsClient(accessToken);
+    const spreadsheetId = getSpreadsheetId();
+
+    const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "Cases!A:Z",
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length <= 1) return null;
+
+    const headers = rows[0] as string[];
+    const cases = parseRows<Case>(headers, rows.slice(1) as string[][]);
+
+    return cases.find((c) => c.case_id === caseId) || null;
+}
+
+// Update case (investigation details)
+export async function updateCase(
+    accessToken: string,
+    caseId: string,
+    updates: Partial<Case>,
+    updatedBy: string
+): Promise<Case | null> {
+    const sheets = getSheetsClient(accessToken);
+    const spreadsheetId = getSpreadsheetId();
+
+    // Get actual headers from the sheet
+    const headers = await getSheetHeaders(sheets, "Cases");
+
+    const rowIndex = await findRowIndex(sheets, "Cases", "case_id", caseId);
+    if (!rowIndex) return null;
+
+    const currentCase = await getCaseById(accessToken, caseId);
+    if (!currentCase) return null;
+
+    // Validate status transitions
+    if (updates.case_status) {
+        const validTransition = validateStatusTransition(
+            currentCase.case_status,
+            updates.case_status,
+            currentCase.level_of_offence,
+            currentCase.category_of_offence
+        );
+        if (!validTransition) {
+            throw new Error(`Invalid status transition from ${currentCase.case_status} to ${updates.case_status}`);
+        }
+    }
+
+    // Add to changelog
+    const metadata = JSON.parse(currentCase.metadata_changelog || "{}");
+    const changelog = metadata.changelog || [];
+    changelog.push({
+        action: updates.case_status ? `status_changed_to_${updates.case_status}` : "updated",
+        by: updatedBy,
+        at: formatDateForStorage(),
+        changes: Object.keys(updates),
+    });
+
+    const updatedCase: Case = {
+        ...currentCase,
+        ...updates,
+        last_updated_by: updatedBy,
+        last_updated_at: formatDateForStorage(),
+        metadata_changelog: JSON.stringify({ ...metadata, changelog }),
+    };
+
+    const row = objectToRowDynamic(headers, updatedCase as unknown as Record<string, unknown>);
+
+    await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `Cases!A${rowIndex}:${String.fromCharCode(64 + headers.length)}${rowIndex}`,
+        valueInputOption: "RAW",
+        requestBody: {
+            values: [row],
+        },
+    });
+
+    return updatedCase;
+}
+
+// Submit investigation
+export async function submitInvestigation(
+    accessToken: string,
+    caseId: string,
+    data: {
+        categoryOfOffence: string;
+        subCategoryOfOffence: string;
+        levelOfOffence: string;
+        caseComments: string;
+        attachments?: string[];
+    },
+    submittedBy: string
+): Promise<Case | null> {
+    return updateCase(
+        accessToken,
+        caseId,
+        {
+            category_of_offence: data.categoryOfOffence,
+            sub_category_of_offence: data.subCategoryOfOffence,
+            level_of_offence: data.levelOfOffence,
+            case_comments: data.caseComments,
+            attachments: JSON.stringify(data.attachments || []),
+            case_status: "Investigation Submitted",
+        },
+        submittedBy
+    );
+}
+
+// Record verdict
+export async function recordVerdict(
+    accessToken: string,
+    caseId: string,
+    data: {
+        verdict: Verdict;
+        punishment?: string;
+    },
+    recordedBy: string
+): Promise<Case | null> {
+    const currentCase = await getCaseById(accessToken, caseId);
+    if (!currentCase) return null;
+
+    // Determine if this goes to Final Decision or Verdict Given
+    const levelNum = parseInt(currentCase.level_of_offence) || 0;
+    const category = currentCase.category_of_offence;
+
+    let newStatus: CaseStatus = "Verdict Given";
+
+    // For lesser offenses, go straight to Final Decision
+    if (category === "Breach of student code of conduct" && levelNum <= 3) {
+        newStatus = "Final Decision";
+    } else if (category === "Breach of internship code of conduct" && levelNum <= 2) {
+        newStatus = "Final Decision";
+    } else if (data.verdict === "Not Guilty") {
+        newStatus = "Final Decision"; // Not Guilty = no appeal
+    }
+
+    return updateCase(
+        accessToken,
+        caseId,
+        {
+            verdict: data.verdict,
+            punishment: data.punishment || "",
+            case_status: newStatus,
+        },
+        recordedBy
+    );
+}
+
+// Submit appeal
+export async function submitAppeal(
+    accessToken: string,
+    caseId: string,
+    data: {
+        appealReason: string;
+        appealAttachments?: string[];
+    },
+    submittedBy: string
+): Promise<Case | null> {
+    const currentCase = await getCaseById(accessToken, caseId);
+    if (!currentCase) return null;
+
+    // Verify appeal is allowed
+    if (currentCase.case_status !== "Verdict Given" || currentCase.verdict !== "Guilty") {
+        throw new Error("Appeals can only be submitted for Guilty verdicts");
+    }
+
+    const levelNum = parseInt(currentCase.level_of_offence) || 0;
+    const category = currentCase.category_of_offence;
+
+    // Check if appeal is allowed based on level
+    if (category === "Breach of student code of conduct" && levelNum < 4) {
+        throw new Error("Appeals are only allowed for Level 4 offences in Student Code of Conduct");
+    }
+    if (category === "Breach of internship code of conduct" && levelNum < 3) {
+        throw new Error("Appeals are only allowed for Level 3 offences in Internship Code of Conduct");
+    }
+
+    return updateCase(
+        accessToken,
+        caseId,
+        {
+            appeal_reason: data.appealReason,
+            appeal_attachments: JSON.stringify(data.appealAttachments || []),
+            case_status: "Appealed",
+        },
+        submittedBy
+    );
+}
+
+// Resolve appeal (Final Decision)
+export async function resolveAppeal(
+    accessToken: string,
+    caseId: string,
+    data: {
+        reviewComments: string;
+        finalVerdict: "Uphold Original" | "Overturn to Not Guilty" | "Modify Level";
+        newLevelOfOffence?: string;
+        punishment?: string;
+    },
+    resolvedBy: string
+): Promise<Case | null> {
+    const updates: Partial<Case> = {
+        review_comments: data.reviewComments,
+        case_status: "Final Decision",
+    };
+
+    if (data.finalVerdict === "Overturn to Not Guilty") {
+        updates.verdict = "Not Guilty";
+        updates.punishment = "";
+    } else if (data.finalVerdict === "Modify Level" && data.newLevelOfOffence) {
+        updates.level_of_offence = data.newLevelOfOffence;
+    }
+
+    if (data.punishment) {
+        updates.punishment = data.punishment;
+    }
+
+    return updateCase(accessToken, caseId, updates, resolvedBy);
+}
+
+// Validate status transitions
+function validateStatusTransition(
+    currentStatus: CaseStatus,
+    newStatus: CaseStatus,
+    levelOfOffence: string,
+    categoryOfOffence: string
+): boolean {
+    const validTransitions: Record<CaseStatus, CaseStatus[]> = {
+        "Pending Investigation": ["Investigation Submitted"],
+        "Investigation Submitted": ["Verdict Given", "Pending Investigation", "Final Decision"],
+        "Verdict Given": ["Final Decision", "Appealed"],
+        "Appealed": ["Final Decision"],
+        "Final Decision": [],
+    };
+
+    return validTransitions[currentStatus]?.includes(newStatus) ?? false;
+}
+
+// Check if all cases for incident are in Final Decision
+export async function areAllCasesFinalized(
+    accessToken: string,
+    incidentId: string
+): Promise<boolean> {
+    const cases = await getCasesByIncident(accessToken, incidentId);
+    if (cases.length === 0) return false;
+    return cases.every((c) => c.case_status === "Final Decision");
+}
