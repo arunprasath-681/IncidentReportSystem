@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { google } from "googleapis";
+import { getDriveClient } from "@/lib/drive/client";
 
 export async function POST(request: NextRequest) {
     try {
@@ -24,12 +25,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Set up Drive client
-        const oauth2Client = new google.auth.OAuth2(
-            process.env.GOOGLE_CLIENT_ID,
-            process.env.GOOGLE_CLIENT_SECRET
-        );
-        oauth2Client.setCredentials({ access_token: session.accessToken });
-        const drive = google.drive({ version: "v3", auth: oauth2Client });
+        // Set up Drive client with Service Account
+        const drive = await getDriveClient();
 
         const folderId = process.env.DRIVE_FOLDER_ID;
         if (!folderId) {
