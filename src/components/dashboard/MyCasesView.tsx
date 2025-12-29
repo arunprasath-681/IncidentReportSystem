@@ -288,9 +288,22 @@ export default function MyCasesView() {
 
                     if (status === "Investigation Submitted") {
                         events.push({
-                            title: "Investigation Submitted",
+                            title: "Investigation Findings",
                             date: dateStr,
-                            description: "Investigation findings submitted for review.",
+                            content: (
+                                <div style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "1rem", marginTop: "0.5rem" }}>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                                        <div>
+                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Category</div>
+                                            <div style={{ fontWeight: "500" }}>{c.category_of_offence || "-"}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Level</div>
+                                            <div style={{ fontWeight: "500" }}>{c.level_of_offence || "-"}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ),
                             icon: Clock,
                             color: "var(--orange)"
                         });
@@ -298,23 +311,62 @@ export default function MyCasesView() {
                         events.push({
                             title: "Verdict Recorded",
                             date: dateStr,
-                            description: `Verdict: ${c.verdict}`,
+                            content: (
+                                <div style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "1rem", marginTop: "0.5rem" }}>
+                                    <div style={{ marginBottom: "1rem" }}>
+                                        <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Verdict</div>
+                                        <div style={{ fontWeight: "600", fontSize: "1.1rem", color: c.verdict === "Guilty" ? "var(--error)" : "var(--success)" }}>
+                                            {c.verdict}
+                                        </div>
+                                    </div>
+                                    {c.punishment && (
+                                        <div style={{ padding: "0.75rem", backgroundColor: "rgba(239, 68, 68, 0.1)", borderRadius: "6px", marginBottom: "1rem" }}>
+                                            <div style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--error)", marginBottom: "0.25rem" }}>PUNISHMENT</div>
+                                            <div style={{ color: "var(--foreground)" }}>{c.punishment}</div>
+                                        </div>
+                                    )}
+                                    {c.case_comments && (
+                                        <div>
+                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "0.25rem" }}>Investigator Comments</div>
+                                            <p style={{ fontStyle: "italic", fontSize: "0.9rem" }}>"{c.case_comments}"</p>
+                                        </div>
+                                    )}
+                                </div>
+                            ),
                             icon: CheckCircle,
                             color: c.verdict === "Guilty" ? "var(--error)" : "var(--success)"
                         });
                     } else if (status === "Appealed") {
+                        const attachments = getAppealAttachments(c);
                         events.push({
                             title: "Appeal Submitted",
                             date: dateStr,
-                            description: "Appeal filed by reported individual.",
+                            content: (
+                                <div style={{ border: "1px solid var(--purple-light, #e9d5ff)", borderRadius: "8px", padding: "1rem", backgroundColor: "var(--purple-bg, #f3e8ff)", marginTop: "0.5rem" }}>
+                                    <p style={{ whiteSpace: "pre-wrap", fontSize: "0.95rem", color: "#3b0764", marginBottom: "1rem" }}>{c.appeal_reason}</p>
+                                    {attachments.length > 0 && (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                                            {attachments.map((url, i) => (
+                                                <a key={i} href={url} target="_blank" rel="noreferrer" className="badge" style={{ backgroundColor: "white", border: "1px solid #d8b4fe", color: "#6b21a8", display: "flex", alignItems: "center", gap: "0.25rem", textDecoration: "none" }}>
+                                                    <FileText size={12} /> Attachment {i + 1}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ),
                             icon: AlertTriangle,
                             color: "var(--purple)"
                         });
                     } else if (status === "Final Decision") {
                         events.push({
-                            title: "Final Decision",
+                            title: "Review Board Decision",
                             date: dateStr,
-                            description: "Final decision reached by review board.",
+                            content: c.review_comments ? (
+                                <div style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "1rem", marginTop: "0.5rem", backgroundColor: "var(--background)" }}>
+                                    <p style={{ fontSize: "0.95rem" }}>{c.review_comments}</p>
+                                </div>
+                            ) : null,
                             icon: CheckCircle,
                             color: "var(--foreground)"
                         });
