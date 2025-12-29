@@ -600,17 +600,19 @@ export default function MyCasesView() {
                                         {(() => {
                                             const timeline = getTimelineEvents(selectedCase, incident);
                                             return timeline.map((event, index) => (
-                                                <div key={index} style={{ position: "relative", display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
+                                                <div key={index} style={{ position: "relative", display: "flex", gap: "1rem", marginBottom: "2rem" }}>
                                                     <div style={{
                                                         width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "var(--background)", border: `2px solid ${event.color}`,
                                                         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1, flexShrink: 0
                                                     }}>
                                                         <event.icon size={16} color={event.color} />
                                                     </div>
-                                                    <div style={{ paddingTop: "0.25rem" }}>
-                                                        <div style={{ fontWeight: "600", fontSize: "0.95rem" }}>{event.title}</div>
-                                                        <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "0.25rem" }}>{event.date}</div>
-                                                        <div style={{ fontSize: "0.875rem" }}>{event.description}</div>
+                                                    <div style={{ paddingTop: "0.25rem", flex: 1 }}>
+                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                                                            <div style={{ fontWeight: "600", fontSize: "0.95rem" }}>{event.title}</div>
+                                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{event.date}</div>
+                                                        </div>
+                                                        {event.content}
                                                     </div>
                                                 </div>
                                             ));
