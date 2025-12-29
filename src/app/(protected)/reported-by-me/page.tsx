@@ -138,7 +138,14 @@ export default function ReportedByMePage() {
         try {
             const res = await fetch(`/api/users/lookup?q=${encodeURIComponent(query)}`);
             const data = await res.json();
-            setSearchResults(data.users || []);
+            const users = data.users || [];
+
+            // Deduplicate users based on email
+            const uniqueUsers = users.filter((user: UserResult, index: number, self: UserResult[]) =>
+                index === self.findIndex((u) => u.email === user.email)
+            );
+
+            setSearchResults(uniqueUsers);
         } catch (error) {
             console.error("Error searching users:", error);
         } finally {
@@ -236,31 +243,48 @@ export default function ReportedByMePage() {
         setError("");
 
         try {
-            let attachmentUrls: string[] = [];
-            if (uploadedFiles.length > 0) {
-                const formData = new FormData();
-                uploadedFiles.forEach((f) => formData.append("files", f.file));
-                const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-                if (!uploadRes.ok) { const d = await uploadRes.json(); throw new Error(d.error || "Failed to upload files"); }
-                const uploadData = await uploadRes.json();
-                attachmentUrls = uploadData.files.map((f: { url: string }) => f.url);
-            }
-
             const incidentDate = new Date(dateTimeOfIncident);
             const formattedDate = `${String(incidentDate.getDate()).padStart(2, "0")}/${String(incidentDate.getMonth() + 1).padStart(2, "0")}/${incidentDate.getFullYear()} ${String(incidentDate.getHours()).padStart(2, "0")}:${String(incidentDate.getMinutes()).padStart(2, "0")}:${String(incidentDate.getSeconds()).padStart(2, "0")}`;
 
-            const res = await fetch("/api/incidents", {
+            // 1. Create Incident first (without attachments)
+            const createRes = await fetch("/api/incidents", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     dateTimeOfIncident: formattedDate,
                     description,
                     reportedIndividuals: selectedUsers.map((u) => u.email),
-                    attachments: attachmentUrls,
+                    attachments: [], // Empty initially
                 }),
             });
 
-            if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Failed to submit incident"); }
+            if (!createRes.ok) { const data = await createRes.json(); throw new Error(data.error || "Failed to submit incident"); }
+            const createData = await createRes.json();
+            const incidentId = createData.incident.incident_id;
+
+            // 2. Upload Files (if any) using the Incident ID
+            if (uploadedFiles.length > 0) {
+                const formData = new FormData();
+                uploadedFiles.forEach((f) => formData.append("files", f.file));
+                formData.append("incidentId", incidentId); // Critical: Pass Incident ID
+
+                const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+                if (!uploadRes.ok) { const d = await uploadRes.json(); throw new Error(d.error || "Failed to upload files"); }
+                const uploadData = await uploadRes.json();
+                const attachmentUrls = uploadData.files.map((f: { url: string }) => f.url);
+
+                // 3. Update Incident with attachment URLs
+                if (attachmentUrls.length > 0) {
+                    await fetch(`/api/incidents/${incidentId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            attachments: attachmentUrls
+                        })
+                    });
+                }
+            }
+
             closeCreateModal();
             fetchIncidents();
         } catch (err) {

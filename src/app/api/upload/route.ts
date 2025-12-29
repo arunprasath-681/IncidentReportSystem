@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { google } from "googleapis";
 import { getDriveClient } from "@/lib/drive/client";
+import { ensureFolder, uploadFileToFolder } from "@/lib/drive/folders";
 
 export async function POST(request: NextRequest) {
     try {
@@ -12,9 +12,16 @@ export async function POST(request: NextRequest) {
 
         const formData = await request.formData();
         const files = formData.getAll("files") as File[];
+        const incidentId = formData.get("incidentId") as string;
+        const caseId = formData.get("caseId") as string | null;
+        const folderType = formData.get("folderType") as string | null; // e.g., "Appealed"
 
         if (!files || files.length === 0) {
             return NextResponse.json({ error: "No files provided" }, { status: 400 });
+        }
+
+        if (!incidentId) {
+            return NextResponse.json({ error: "Incident ID is required" }, { status: 400 });
         }
 
         const maxFiles = 5;
@@ -25,12 +32,26 @@ export async function POST(request: NextRequest) {
         }
 
         // Set up Drive client
-        // Set up Drive client with Service Account
         const drive = await getDriveClient();
+        const rootFolderId = process.env.DRIVE_FOLDER_ID;
 
-        const folderId = process.env.DRIVE_FOLDER_ID;
-        if (!folderId) {
+        if (!rootFolderId) {
             return NextResponse.json({ error: "Drive folder not configured" }, { status: 500 });
+        }
+
+        // 1. Ensure Incident Folder
+        const incidentFolderId = await ensureFolder(drive, rootFolderId, incidentId);
+        let targetFolderId = incidentFolderId;
+
+        // 2. Ensure Case Folder (if provided)
+        if (caseId) {
+            const caseFolderId = await ensureFolder(drive, incidentFolderId, caseId);
+            targetFolderId = caseFolderId;
+
+            // 3. Ensure Type Subfolder (if provided, e.g., "Appealed")
+            if (folderType) {
+                targetFolderId = await ensureFolder(drive, caseFolderId, folderType);
+            }
         }
 
         const uploadedFiles: { name: string; url: string; id: string }[] = [];
@@ -41,44 +62,17 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: `File ${file.name} exceeds 10MB limit` }, { status: 400 });
             }
 
-            // Convert file to buffer
-            const buffer = Buffer.from(await file.arrayBuffer());
+            // Construct Filename: <email>_<timestamp>_<originalName>
+            const activeUser = session.user.email;
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const customName = `${activeUser}_${timestamp}_${file.name}`;
 
-            // Upload to Drive
-            const response = await drive.files.create({
-                requestBody: {
-                    name: `${Date.now()}_${file.name}`,
-                    parents: [folderId],
-                },
-                media: {
-                    mimeType: file.type,
-                    body: require("stream").Readable.from(buffer),
-                },
-                fields: "id, name, webViewLink",
-                supportsAllDrives: true,
-            });
-
-            // Make the file viewable by anyone with the link
-            await drive.permissions.create({
-                fileId: response.data.id!,
-                requestBody: {
-                    role: "reader",
-                    type: "anyone",
-                },
-                supportsAllDrives: true,
-            });
-
-            // Get the updated file with webViewLink
-            const fileInfo = await drive.files.get({
-                fileId: response.data.id!,
-                fields: "id, name, webViewLink",
-                supportsAllDrives: true,
-            });
+            const uploadedFile = await uploadFileToFolder(drive, targetFolderId, file, customName);
 
             uploadedFiles.push({
                 name: file.name,
-                url: fileInfo.data.webViewLink || "",
-                id: fileInfo.data.id || "",
+                url: uploadedFile.webViewLink,
+                id: uploadedFile.id,
             });
         }
 

@@ -171,10 +171,20 @@ export default function MyCasesView() {
                 setUploading(true);
                 for (const f of uploadedFiles) {
                     const formData = new FormData();
-                    formData.append("file", f.file);
+                    formData.append("files", f.file); // Fixed key to match API
+                    formData.append("incidentId", selectedCase.incident_id);
+                    formData.append("caseId", selectedCase.case_id);
+                    formData.append("folderType", "Appealed");
+
                     const res = await fetch("/api/upload", { method: "POST", body: formData });
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error || "Failed to upload file");
+                    }
                     const data = await res.json();
-                    if (data.url) attachmentUrls.push(data.url);
+                    if (data.files && data.files.length > 0) {
+                        attachmentUrls.push(data.files[0].url);
+                    }
                 }
                 setUploading(false);
             }

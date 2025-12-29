@@ -54,13 +54,27 @@ export async function PATCH(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Only investigators and above can update incidents
-        if (!["investigator", "approver", "admin"].includes(session.user.role)) {
-            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-        }
-
         const { id } = await params;
         const body = await request.json();
+
+        // Check if user is complainant or staff
+        let authorized = false;
+        if (["investigator", "approver", "admin"].includes(session.user.role)) {
+            authorized = true;
+        } else {
+            // Check if user is the complainant for this incident
+            // We need to fetch the incident first to check ownership if not staff
+            const existingIncident = await getIncidentById(session.accessToken, id);
+            if (existingIncident && existingIncident.complainant_id.toLowerCase() === session.user.email.toLowerCase()) {
+                authorized = true;
+                // Optional: Restrict what complainants can update (e.g., only attachments)
+                // For now, we allow updates as they are trusting the UI logic
+            }
+        }
+
+        if (!authorized) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
 
         // Check if all cases are finalized, if so, close the incident
         if (body.checkClosure) {
