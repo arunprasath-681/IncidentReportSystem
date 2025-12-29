@@ -8,13 +8,17 @@ import { getDriveClient } from "./client";
  * If not, creates it and returns the new ID.
  */
 export async function ensureFolder(drive: drive_v3.Drive, parentId: string, folderName: string): Promise<string> {
+    const cleanName = folderName.trim();
     try {
         // Check if folder exists
-        const query = `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and name='${folderName}' and trashed=false`;
+        const query = `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and name='${cleanName}' and trashed=false`;
         const res = await drive.files.list({
             q: query,
             fields: "files(id, name)",
             spaces: "drive",
+            pageSize: 10,
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true,
         });
 
         if (res.data.files && res.data.files.length > 0) {
@@ -23,7 +27,7 @@ export async function ensureFolder(drive: drive_v3.Drive, parentId: string, fold
 
         // Create folder
         const fileMetadata = {
-            name: folderName,
+            name: cleanName,
             mimeType: "application/vnd.google-apps.folder",
             parents: [parentId],
         };
@@ -36,7 +40,7 @@ export async function ensureFolder(drive: drive_v3.Drive, parentId: string, fold
 
         return file.data.id!;
     } catch (error) {
-        console.error(`Error ensuring folder '${folderName}' in '${parentId}':`, error);
+        console.error(`Error ensuring folder '${cleanName}' in '${parentId}':`, error);
         throw error;
     }
 }

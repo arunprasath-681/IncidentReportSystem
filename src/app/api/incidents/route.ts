@@ -42,8 +42,9 @@ export async function GET(request: NextRequest) {
             filters.status = status;
         }
 
-        // Campus Managers can only see their campus cases (unless they're in OtherUsers as Investigator)
-        if (session.user.role === "investigator" && session.user.campusCode) {
+        // Campus Managers can only see their campus cases
+        // Investigators also get filtered if they are associated with a campus code (unlikely for central investigators, but possible)
+        if ((session.user.role === "investigator" || session.user.role === "campus manager") && session.user.campusCode) {
             filters.campusCode = session.user.campusCode;
         }
 

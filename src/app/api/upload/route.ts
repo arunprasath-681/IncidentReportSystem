@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
 
         const formData = await request.formData();
         const files = formData.getAll("files") as File[];
-        const incidentId = formData.get("incidentId") as string;
-        const caseId = formData.get("caseId") as string | null;
-        const folderType = formData.get("folderType") as string | null; // e.g., "Appealed"
+        const incidentId = (formData.get("incidentId") as string)?.trim();
+        const caseId = (formData.get("caseId") as string | null)?.trim();
+        const folderType = (formData.get("folderType") as string | null)?.trim(); // e.g., "Appealed"
 
         if (!files || files.length === 0) {
             return NextResponse.json({ error: "No files provided" }, { status: 400 });

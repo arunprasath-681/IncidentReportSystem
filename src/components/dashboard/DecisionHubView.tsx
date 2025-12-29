@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Scale, Eye, X, Check, RotateCcw, FileText, Activity, Gavel, Pencil } from "lucide-react";
+import { Scale, Eye, X, Check, RotateCcw, FileText, Activity, Gavel, Pencil, Plus } from "lucide-react";
 import { type CaseStatus } from "@/lib/sheets/cases";
 import { SUB_CATEGORIES } from "@/lib/constants";
 
@@ -25,6 +25,8 @@ interface Case {
     case_comments: string;
     review_comments: string;
     appeal_reason: string;
+    investigator_attachments?: string;
+    approver_attachments?: string;
 }
 
 interface Incident {
@@ -69,6 +71,11 @@ export default function DecisionHubView() {
     const [reviewComments, setReviewComments] = useState("");
     const [finalVerdict, setFinalVerdict] = useState<"Uphold Original" | "Overturn to Not Guilty" | "Modify Level" | "">("");
     const [newLevel, setNewLevel] = useState("");
+
+    // File Upload State
+    const [uploadedFiles, setUploadedFiles] = useState<{ file?: File; preview: string; name: string; url?: string; type: "image" | "pdf" | "doc" }[]>([]);
+    const [uploading, setUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         fetchCases();
@@ -115,6 +122,22 @@ export default function DecisionHubView() {
         setFinalVerdict("");
         setNewLevel("");
 
+        // Load existing approver attachments
+        const existingAttachments: string[] = [];
+        try {
+            if (caseData.approver_attachments) {
+                const parsed = JSON.parse(caseData.approver_attachments);
+                if (Array.isArray(parsed)) existingAttachments.push(...parsed);
+            }
+        } catch (e) { console.error("Error parsing attachments", e); }
+
+        setUploadedFiles(existingAttachments.map(url => ({
+            preview: url,
+            name: url.split("/").pop() || "Attachment",
+            url: url,
+            type: url.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) ? "image" : "doc"
+        })));
+
         // Fetch incident data
         setIncidentData(null);
         fetchIncident(caseData.incident_id);
@@ -126,6 +149,7 @@ export default function DecisionHubView() {
         setError("");
         setIncidentData(null);
         setIsEditingInvestigation(false);
+        setUploadedFiles([]);
     }
 
     function startEditingInvestigation() {
@@ -183,6 +207,84 @@ export default function DecisionHubView() {
         }
     }
 
+    // File Helpers
+    function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+        if (e.target.files) {
+            const files = Array.from(e.target.files);
+            const validFiles: typeof uploadedFiles = [];
+
+            for (const file of files) {
+                if (file.size > 10 * 1024 * 1024) {
+                    alert(`File ${file.name} is too large (max 10MB)`);
+                    continue;
+                }
+                if (uploadedFiles.length + validFiles.length >= 5) {
+                    alert("Maximum 5 files allowed");
+                    break;
+                }
+
+                let fileType: "image" | "pdf" | "doc" = "doc";
+                if (file.type.startsWith("image/")) fileType = "image";
+                else if (file.type === "application/pdf") fileType = "pdf";
+
+                validFiles.push({
+                    file,
+                    preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
+                    name: file.name,
+                    type: fileType
+                });
+            }
+            setUploadedFiles(prev => [...prev, ...validFiles]);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    }
+
+    function removeFile(index: number) {
+        setUploadedFiles(prev => {
+            const file = prev[index];
+            if (file.preview && !file.url) URL.revokeObjectURL(file.preview);
+            return prev.filter((_, i) => i !== index);
+        });
+    }
+
+    async function uploadNewFiles(): Promise<string[]> {
+        if (!selectedCase) return [];
+        const existingUrls = uploadedFiles.filter(f => f.url).map(f => f.url!);
+        const newFiles = uploadedFiles.filter(f => !f.url && f.file);
+
+        if (newFiles.length === 0) return existingUrls;
+
+        setUploading(true);
+        const newUrls: string[] = [];
+
+        try {
+            const formData = new FormData();
+            formData.append("incidentId", selectedCase.incident_id);
+            formData.append("caseId", selectedCase.case_id);
+            formData.append("folderType", "Approver_Evidence");
+
+            for (const f of newFiles) {
+                formData.append("files", f.file!);
+            }
+
+            if (newFiles.length > 0) {
+                const res = await fetch("/api/upload", { method: "POST", body: formData });
+                if (!res.ok) throw new Error("Failed to upload files");
+                const data = await res.json();
+                if (data.files) {
+                    newUrls.push(...data.files.map((f: any) => f.url));
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            throw new Error("File upload failed");
+        } finally {
+            setUploading(false);
+        }
+
+        return [...existingUrls, ...newUrls];
+    }
+
     async function handleRecordVerdict() {
         if (!selectedCase || !verdict) {
             setError("Please select a verdict");
@@ -197,12 +299,18 @@ export default function DecisionHubView() {
         setError("");
 
         try {
+            const attachments = await uploadNewFiles();
+
             const res = await fetch(`/api/cases/${selectedCase.case_id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     action: "record_verdict",
-                    data: { verdict, punishment: verdict === "Guilty" ? punishment : "" },
+                    data: {
+                        verdict,
+                        punishment: verdict === "Guilty" ? punishment : "",
+                        attachments // Sent to backend, which maps to approver_attachments
+                    },
                 }),
             });
 
@@ -302,7 +410,8 @@ export default function DecisionHubView() {
         final: loading ? "-" : cases.filter((c) => c.case_status === "Final Decision").length,
     };
 
-    const parseAttachments = (json: string) => {
+    const parseAttachments = (json: string | undefined) => {
+        if (!json) return [];
         try {
             return JSON.parse(json) as string[];
         } catch {
@@ -522,6 +631,27 @@ export default function DecisionHubView() {
                                                     <p style={{ whiteSpace: "pre-wrap", marginTop: "0.25rem", fontSize: "0.875rem" }}>{selectedCase.case_comments}</p>
                                                 </div>
                                             )}
+
+                                            {/* Investigator Attachments */}
+                                            {parseAttachments(selectedCase.investigator_attachments).length > 0 && (
+                                                <div style={{ marginBottom: "1.5rem" }}>
+                                                    <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Evidence / Attachments</span>
+                                                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+                                                        {parseAttachments(selectedCase.investigator_attachments).map((url, i) => (
+                                                            <a
+                                                                key={i}
+                                                                href={url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                style={{ display: "flex", alignItems: "center", gap: "0.25rem", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", fontSize: "0.875rem", textDecoration: "none" }}
+                                                            >
+                                                                <FileText size={14} />
+                                                                Evidence {i + 1}
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -556,12 +686,72 @@ export default function DecisionHubView() {
                                                 </div>
                                             )}
 
+                                            {/* File Upload UI */}
+                                            <div className="form-group">
+                                                <label className="label">Attachments (Optional)</label>
+                                                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                                                    {uploadedFiles.map((file, index) => (
+                                                        <div key={index} style={{
+                                                            position: "relative", width: "80px", height: "80px", border: "1px solid var(--border)",
+                                                            borderRadius: "var(--radius)", overflow: "hidden", display: "flex", flexDirection: "column",
+                                                            alignItems: "center", justifyContent: "center", backgroundColor: "var(--background)"
+                                                        }}>
+                                                            {file.type === "image" ? (
+                                                                <img src={file.preview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                            ) : (
+                                                                <FileText size={24} style={{ color: "var(--muted-foreground)" }} />
+                                                            )}
+                                                            <button
+                                                                onClick={() => removeFile(index)}
+                                                                style={{
+                                                                    position: "absolute", top: "2px", right: "2px",
+                                                                    backgroundColor: "rgba(0,0,0,0.6)", color: "white",
+                                                                    border: "none", borderRadius: "50%", width: "18px", height: "18px",
+                                                                    display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer"
+                                                                }}
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.6)", color: "white", fontSize: "0.6rem", padding: "2px", textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                                {file.name}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+
+                                                    {uploadedFiles.length < 5 && (
+                                                        <div
+                                                            onClick={() => fileInputRef.current?.click()}
+                                                            style={{
+                                                                width: "80px", height: "80px", border: "1px dashed var(--border)",
+                                                                borderRadius: "var(--radius)", display: "flex", flexDirection: "column",
+                                                                alignItems: "center", justifyContent: "center", cursor: "pointer",
+                                                                backgroundColor: "var(--muted)", color: "var(--muted-foreground)",
+                                                                transition: "background-color 0.2s"
+                                                            }}
+                                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "var(--border)"}
+                                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "var(--muted)"}
+                                                        >
+                                                            <Plus size={24} />
+                                                            <span style={{ fontSize: "0.65rem", marginTop: "0.25rem" }}>Add File</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRef}
+                                                    style={{ display: "none" }}
+                                                    onChange={handleFileSelect}
+                                                    multiple
+                                                    accept="image/*,application/pdf,.doc,.docx"
+                                                />
+                                            </div>
+
                                             <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)" }}>
-                                                <button onClick={handleRequestMore} className="btn btn-secondary" disabled={saving}>
+                                                <button onClick={handleRequestMore} className="btn btn-secondary" disabled={saving || uploading}>
                                                     <RotateCcw size={16} /> Request More Investigation
                                                 </button>
-                                                <button onClick={handleRecordVerdict} className="btn btn-primary" disabled={saving} style={{ marginLeft: "auto" }}>
-                                                    {saving ? <div className="spinner" style={{ width: "1rem", height: "1rem" }}></div> : <Check size={16} />}
+                                                <button onClick={handleRecordVerdict} className="btn btn-primary" disabled={saving || uploading} style={{ marginLeft: "auto" }}>
+                                                    {saving || uploading ? <div className="spinner" style={{ width: "1rem", height: "1rem" }}></div> : <Check size={16} />}
                                                     Record Verdict
                                                 </button>
                                             </div>
@@ -632,6 +822,25 @@ export default function DecisionHubView() {
                                                 <div>
                                                     <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Review Comments</span>
                                                     <p style={{ whiteSpace: "pre-wrap" }}>{selectedCase.review_comments}</p>
+                                                </div>
+                                            )}
+                                            {/* Show Approver Attachments in View Mode if any */}
+                                            {parseAttachments(selectedCase.approver_attachments).length > 0 && (
+                                                <div>
+                                                    <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Approver Attachments</span>
+                                                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
+                                                        {parseAttachments(selectedCase.approver_attachments).map((url, i) => (
+                                                            <a
+                                                                key={i}
+                                                                href={url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.875rem", color: "var(--primary)" }}
+                                                            >
+                                                                <FileText size={14} /> Attachment {i + 1}
+                                                            </a>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>

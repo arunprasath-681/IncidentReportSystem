@@ -59,15 +59,7 @@ export default function NotAuthorizedPage() {
                     Access Not Authorized
                 </h1>
 
-                <p
-                    style={{
-                        color: "var(--muted-foreground)",
-                        marginBottom: "1.5rem",
-                        lineHeight: "1.6",
-                    }}
-                >
-                    Your account is not authorized to access this system. Please contact your administrator to request access.
-                </p>
+
 
                 <div
                     style={{
@@ -78,12 +70,7 @@ export default function NotAuthorizedPage() {
                         fontSize: "0.875rem",
                     }}
                 >
-                    <p style={{ fontWeight: "500", marginBottom: "0.5rem" }}>
-                        Need Help?
-                    </p>
-                    <p style={{ color: "var(--muted-foreground)" }}>
-                        Contact your Campus Manager or the IRS Admin team to be added to the system.
-                    </p>
+                    Your account is not authorized to access this system. Please contact srikanth@kalvium.com to request access, if you think this is a mistake.
                 </div>
 
                 <Link

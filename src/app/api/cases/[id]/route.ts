@@ -30,6 +30,7 @@ const investigationSchema = z.object({
 const verdictSchema = z.object({
     verdict: z.enum(["Guilty", "Not Guilty"]),
     punishment: z.string().optional(),
+    attachments: z.array(z.string()).optional(),
 });
 
 const appealSchema = z.object({
@@ -119,7 +120,7 @@ export async function PATCH(
                 updatedCase = await recordVerdict(
                     session.accessToken,
                     id,
-                    data as { verdict: Verdict; punishment?: string },
+                    data as { verdict: Verdict; punishment?: string; attachments?: string[] },
                     session.user.email
                 );
 
@@ -266,7 +267,7 @@ export async function PATCH(
                         sub_category_of_offence: body.data.subCategoryOfOffence,
                         level_of_offence: body.data.levelOfOffence,
                         case_comments: body.data.caseComments,
-                        attachments: JSON.stringify(body.data.attachments || []),
+                        investigator_attachments: JSON.stringify(body.data.attachments || []),
                     },
                     session.user.email
                 );

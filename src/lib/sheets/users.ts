@@ -1,6 +1,16 @@
 import { google } from "googleapis";
 import { getSpreadsheetId, parseRows, getSheetsClient } from "./client";
 
+// Helper for case-insensitive property access
+function getCaseInsensitive(obj: any, key: string): string | undefined {
+    if (!obj) return undefined;
+    // Try exact match first
+    if (obj[key] !== undefined) return obj[key];
+    // Try case-insensitive match
+    const foundKey = Object.keys(obj).find(k => k.toLowerCase() === key.toLowerCase());
+    return foundKey ? obj[foundKey] : undefined;
+}
+
 export type UserRole =
     | "admin"
     | "approver"
@@ -73,15 +83,19 @@ export async function getUserRoleWithToken(
         if (otherUsersRows && otherUsersRows.length > 1) {
             const headers = otherUsersRows[0] as string[];
             const users = parseRows<OtherUser>(headers, otherUsersRows.slice(1) as string[][]);
-            const otherUser = users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+            const otherUser = users.find((u) => {
+                const uEmail = getCaseInsensitive(u, "email");
+                return uEmail?.trim().toLowerCase() === email.trim().toLowerCase();
+            });
 
             if (otherUser) {
-                const roleLower = otherUser.role?.toLowerCase() || "";
+                const roleVal = getCaseInsensitive(otherUser, "role");
+                const roleLower = roleVal?.trim().toLowerCase() || "";
                 if (["admin", "approver", "investigator"].includes(roleLower)) {
                     return {
                         role: roleLower as UserRole,
-                        name: otherUser.name,
-                        email: otherUser.email,
+                        name: getCaseInsensitive(otherUser, "name") || otherUser.name,
+                        email: getCaseInsensitive(otherUser, "email") || otherUser.email,
                         category: "other",
                         isAuthorized: true,
                     };
@@ -98,18 +112,28 @@ export async function getUserRoleWithToken(
         const staffRows = staffResponse.data.values;
         if (staffRows && staffRows.length > 1) {
             const headers = staffRows[0] as string[];
+            console.log("Staff Headers:", headers); // DEBUG
             const staff = parseRows<Staff>(headers, staffRows.slice(1) as string[][]);
-            const staffMember = staff.find((s) => s.email?.toLowerCase() === email.toLowerCase());
+            const staffMember = staff.find((s) => {
+                const sEmail = getCaseInsensitive(s, "email");
+                return sEmail?.trim().toLowerCase() === email.trim().toLowerCase();
+            });
+
+            console.log("Checking email:", email); // DEBUG
+            console.log("Found staff member:", staffMember ? "YES" : "NO"); // DEBUG
 
             if (staffMember) {
-                const roleLower = staffMember.role?.toLowerCase() || "";
+                const roleVal = getCaseInsensitive(staffMember, "role");
+                const roleLower = roleVal?.trim().toLowerCase() || "";
+                console.log("Role found:", roleVal, "Lower:", roleLower); // DEBUG
+
                 // Only Campus Manager gets access
-                if (roleLower === "campus manager") {
+                if (roleLower === "campus manager" || roleLower === "campus_manager") {
                     return {
                         role: "campus manager",
-                        campusCode: staffMember.campus_code,
-                        name: staffMember.name,
-                        email: staffMember.email,
+                        campusCode: getCaseInsensitive(staffMember, "campus_code") || staffMember.campus_code,
+                        name: getCaseInsensitive(staffMember, "name") || staffMember.name,
+                        email: getCaseInsensitive(staffMember, "email") || staffMember.email,
                         category: "staff",
                         isAuthorized: true,
                     };
@@ -127,14 +151,17 @@ export async function getUserRoleWithToken(
         if (studentRows && studentRows.length > 1) {
             const headers = studentRows[0] as string[];
             const students = parseRows<Student>(headers, studentRows.slice(1) as string[][]);
-            const student = students.find((s) => s.email?.toLowerCase() === email.toLowerCase());
+            const student = students.find((s) => {
+                const sEmail = getCaseInsensitive(s, "email");
+                return sEmail?.trim().toLowerCase() === email.trim().toLowerCase();
+            });
 
             if (student) {
                 return {
                     role: "student",
-                    campusCode: student.campus_code,
-                    name: student.name,
-                    email: student.email,
+                    campusCode: getCaseInsensitive(student, "campus_code") || student.campus_code,
+                    name: getCaseInsensitive(student, "name") || student.name,
+                    email: getCaseInsensitive(student, "email") || student.email,
                     category: "other", // treating as other/student category
                     isAuthorized: true,
                 };
@@ -176,8 +203,14 @@ export async function getAllAuthorizedUsers(
             const headers = otherUsersRows[0] as string[];
             const users = parseRows<OtherUser>(headers, otherUsersRows.slice(1) as string[][]);
             users.forEach((u) => {
-                if (u.email && ["admin", "approver", "investigator"].includes(u.role?.toLowerCase())) {
-                    results.push({ email: u.email, name: u.name, role: u.role });
+                const uEmail = getCaseInsensitive(u, "email");
+                const uRole = getCaseInsensitive(u, "role");
+                if (uEmail && ["admin", "approver", "investigator"].includes(uRole?.toLowerCase() || "")) {
+                    results.push({
+                        email: uEmail,
+                        name: getCaseInsensitive(u, "name") || u.name,
+                        role: uRole || u.role
+                    });
                 }
             });
         }
@@ -193,8 +226,14 @@ export async function getAllAuthorizedUsers(
             const headers = staffRows[0] as string[];
             const staff = parseRows<Staff>(headers, staffRows.slice(1) as string[][]);
             staff.forEach((s) => {
-                if (s.email && s.role?.toLowerCase() === "campus manager") {
-                    results.push({ email: s.email, name: s.name, role: "Campus Manager" });
+                const sEmail = getCaseInsensitive(s, "email");
+                const sRole = getCaseInsensitive(s, "role");
+                if (sEmail && (sRole?.toLowerCase() === "campus manager" || sRole?.toLowerCase() === "campus_manager")) {
+                    results.push({
+                        email: sEmail,
+                        name: getCaseInsensitive(s, "name") || s.name,
+                        role: "Campus Manager"
+                    });
                 }
             });
         }
@@ -244,19 +283,20 @@ export async function searchUsers(
             const students = parseRows<Student>(headers, studentRows.slice(1) as string[][]);
 
             students
-                .filter((s) =>
-                    s.email?.toLowerCase().includes(lowerQuery) ||
-                    s.name?.toLowerCase().includes(lowerQuery)
-                )
+                .filter((s) => {
+                    const sEmail = getCaseInsensitive(s, "email")?.toLowerCase();
+                    const sName = getCaseInsensitive(s, "name")?.toLowerCase();
+                    return (sEmail && sEmail.includes(lowerQuery)) || (sName && sName.includes(lowerQuery));
+                })
                 .slice(0, 10)
                 .forEach((s) => {
                     results.push({
-                        email: s.email,
-                        name: s.name,
+                        email: getCaseInsensitive(s, "email") || "",
+                        name: getCaseInsensitive(s, "name") || "",
                         type: "student",
-                        campus_code: s.campus_code,
-                        squad_number: s.squad_number,
-                        status: s.status,
+                        campus_code: getCaseInsensitive(s, "campus_code"),
+                        squad_number: getCaseInsensitive(s, "squad_number"),
+                        status: getCaseInsensitive(s, "status"),
                     });
                 });
         }
@@ -273,18 +313,19 @@ export async function searchUsers(
             const staff = parseRows<Staff>(headers, staffRows.slice(1) as string[][]);
 
             staff
-                .filter((s) =>
-                    s.email?.toLowerCase().includes(lowerQuery) ||
-                    s.name?.toLowerCase().includes(lowerQuery)
-                )
+                .filter((s) => {
+                    const sEmail = getCaseInsensitive(s, "email")?.toLowerCase();
+                    const sName = getCaseInsensitive(s, "name")?.toLowerCase();
+                    return (sEmail && sEmail.includes(lowerQuery)) || (sName && sName.includes(lowerQuery));
+                })
                 .slice(0, 10)
                 .forEach((s) => {
                     results.push({
-                        email: s.email,
-                        name: s.name,
+                        email: getCaseInsensitive(s, "email") || "",
+                        name: getCaseInsensitive(s, "name") || "",
                         type: "staff",
-                        campus_code: s.campus_code,
-                        status: s.status,
+                        campus_code: getCaseInsensitive(s, "campus_code"),
+                        status: getCaseInsensitive(s, "status"),
                     });
                 });
         }
@@ -315,13 +356,13 @@ export async function getUserByEmail(
         if (studentRows && studentRows.length > 1) {
             const headers = studentRows[0] as string[];
             const students = parseRows<Student>(headers, studentRows.slice(1) as string[][]);
-            const student = students.find((s) => s.email?.toLowerCase() === email.toLowerCase());
+            const student = students.find((s) => getCaseInsensitive(s, "email")?.toLowerCase() === email.toLowerCase());
 
             if (student) {
                 return {
-                    name: student.name,
-                    campusCode: student.campus_code,
-                    squadNumber: student.squad_number,
+                    name: getCaseInsensitive(student, "name") || "",
+                    campusCode: getCaseInsensitive(student, "campus_code") || "",
+                    squadNumber: getCaseInsensitive(student, "squad_number"),
                     type: "student",
                 };
             }
@@ -337,12 +378,12 @@ export async function getUserByEmail(
         if (staffRows && staffRows.length > 1) {
             const headers = staffRows[0] as string[];
             const staff = parseRows<Staff>(headers, staffRows.slice(1) as string[][]);
-            const staffMember = staff.find((s) => s.email?.toLowerCase() === email.toLowerCase());
+            const staffMember = staff.find((s) => getCaseInsensitive(s, "email")?.toLowerCase() === email.toLowerCase());
 
             if (staffMember) {
                 return {
-                    name: staffMember.name,
-                    campusCode: staffMember.campus_code,
+                    name: getCaseInsensitive(staffMember, "name") || "",
+                    campusCode: getCaseInsensitive(staffMember, "campus_code") || "",
                     type: "staff",
                 };
             }

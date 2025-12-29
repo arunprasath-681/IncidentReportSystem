@@ -32,6 +32,8 @@ export interface Case {
     case_status: CaseStatus;
     appeal_reason: string;
     appeal_attachments: string; // JSON array
+    investigator_attachments: string; // JSON array
+    approver_attachments: string; // JSON array
     review_comments: string;
     last_updated_by: string;
     last_updated_at: string;
@@ -69,11 +71,27 @@ async function getSheetHeaders(
 // Convert object to row based on actual sheet headers
 function objectToRowDynamic(headers: string[], obj: Record<string, unknown>): string[] {
     return headers.map((header) => {
-        const value = obj[header];
+        let value = obj[header];
+        if (value === undefined) {
+            const lowerHeader = header.toLowerCase();
+            const key = Object.keys(obj).find(k => k.toLowerCase() === lowerHeader);
+            if (key) value = obj[key];
+        }
+
         if (value === null || value === undefined) return "";
         if (typeof value === "object") return JSON.stringify(value);
         return String(value);
     });
+}
+
+// Helper to normalize keys to lowercase to ensure matching interface
+function normalizeCase(row: any): Case {
+    const normalized: any = {};
+    Object.keys(row).forEach(k => {
+        normalized[k] = row[k];
+        normalized[k.toLowerCase()] = row[k];
+    });
+    return normalized as Case;
 }
 
 // Create a new case
@@ -99,6 +117,8 @@ export async function createCase(
         level_of_offence: "",
         case_comments: "",
         attachments: "[]",
+        investigator_attachments: "[]",
+        approver_attachments: "[]",
         verdict: "",
         punishment: "",
         case_status: "Pending Investigation",
@@ -150,7 +170,7 @@ export async function getCasesByIncident(
     if (!rows || rows.length <= 1) return [];
 
     const headers = rows[0] as string[];
-    const cases = parseRows<Case>(headers, rows.slice(1) as string[][]);
+    const cases = parseRows<Case>(headers, rows.slice(1) as string[][]).map(normalizeCase);
 
     return cases.filter((c) => c.incident_id === incidentId);
 }
@@ -176,7 +196,7 @@ export async function getCases(
     if (!rows || rows.length <= 1) return [];
 
     const headers = rows[0] as string[];
-    let cases = parseRows<Case>(headers, rows.slice(1) as string[][]);
+    let cases = parseRows<Case>(headers, rows.slice(1) as string[][]).map(normalizeCase);
 
     if (filters?.status) {
         cases = cases.filter((c) => c.case_status === filters.status);
@@ -217,7 +237,7 @@ export async function getCaseById(
     if (!rows || rows.length <= 1) return null;
 
     const headers = rows[0] as string[];
-    const cases = parseRows<Case>(headers, rows.slice(1) as string[][]);
+    const cases = parseRows<Case>(headers, rows.slice(1) as string[][]).map(normalizeCase);
 
     return cases.find((c) => c.case_id === caseId) || null;
 }
@@ -307,7 +327,7 @@ export async function submitInvestigation(
             sub_category_of_offence: data.subCategoryOfOffence,
             level_of_offence: data.levelOfOffence,
             case_comments: data.caseComments,
-            attachments: JSON.stringify(data.attachments || []),
+            investigator_attachments: JSON.stringify(data.attachments || []),
             case_status: "Investigation Submitted",
         },
         submittedBy
@@ -321,6 +341,7 @@ export async function recordVerdict(
     data: {
         verdict: Verdict;
         punishment?: string;
+        attachments?: string[];
     },
     recordedBy: string
 ): Promise<Case | null> {
@@ -348,6 +369,7 @@ export async function recordVerdict(
         {
             verdict: data.verdict,
             punishment: data.punishment || "",
+            approver_attachments: JSON.stringify(data.attachments || []),
             case_status: newStatus,
         },
         recordedBy

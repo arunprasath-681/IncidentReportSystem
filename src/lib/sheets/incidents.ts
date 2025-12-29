@@ -1,6 +1,7 @@
 import { google, sheets_v4 } from "googleapis";
 import { getSpreadsheetId, parseRows, findRowIndex, formatDateForStorage, parseDateFromStorage, getSheetsClient } from "./client";
 import { v4 as uuidv4 } from "uuid";
+import { getCases } from "./cases";
 
 export interface Incident {
     incident_id: string;
@@ -153,15 +154,56 @@ export async function getIncidents(
         );
     }
 
+    if (filters?.campusCode) {
+        // Fetch cases for this campus to find relevant incident IDs
+        const campusCases = await getCases(accessToken, { campusCode: filters.campusCode });
+        const relevantIncidentIds = new Set(campusCases.map(c => c.incident_id));
+        incidents = incidents.filter(i => relevantIncidentIds.has(i.incident_id));
+    }
+
     if (filters?.status) {
         incidents = incidents.filter((i) => i.status === filters.status);
     }
 
-    // Sort by reported_on descending
-    incidents.sort((a, b) =>
-        parseDateFromStorage(b.reported_on).getTime() - parseDateFromStorage(a.reported_on).getTime()
-    );
+    // Filter by Campus Code (for Campus Managers/Investigators)
+    // Note: Incident doesn't intrinsically have campus code, but we can try to filter by 
+    // ensuring at least ONE of the reported individuals in associated cases matches the campus.
+    // HOWEVER, fetching all cases here is expensive.
+    // ALTERNATIVE: Use the Complainant's campus? Or assume this filter is only used for list view
+    // where strictness might be loose, or we need to rethink schema.
+    //
+    // WAIT: The Requirement is "access only cases that are tagged to their campus".
+    // Incidents don't have campus tags directly. Cases do.
+    // But Campus Managers see incidents in Investigation Hub.
+    // If we filter incidents, we need to know if the incident "belongs" to a campus.
+    // An incident belongs to a campus if ANY of its cases belong to that campus?
+    // OR if the complainant is from that campus?
+    //
+    // Let's look at `getIncidents` usage. It's used for the main list.
+    // If I cannot easily filter here, maybe I should do it in the API by fetching cases?
+    // OR, we can try to infer it. 
+    // But for now, since `filters.campusCode` is passed, I MUST assume there's a way.
+    //
+    // Actually, `src/lib/sheets/incidents.ts` doesn't seem to have campus info.
+    // But wait, the `Case` has `campus`.
+    // Maybe we should filter CASES first, then get incidents?
+    //
+    // Let's hold off on this file and check `src/lib/sheets/cases.ts` first.
+    // If I filter `cases`, then `getIncidents` usually implies fetching the parent incident.
+    //
+    // Re-reading: "they can access only cases that are tagged to their campus".
+    // Investigation Hub displays a list of *Incidents* usually.
+    // If I filter Incidents by Campus, I need to know which campus the incident is for.
+    // The Incident definition (line 5) does NOT have campus.
+    //
+    // Workaround: In `getIncidents`, if `campusCode` filter is present, 
+    // I should also fetch `Cases` and check if any case matches the campus?
+    // That seems expensive but necessary if Schema doesn't support it.
+    //
+    // Let's implement a "best effort" or "fetch cases" approach.
+    // Actually, I'll update the comment and defer implementation until I check `cases.ts`.
 
+    // TEMPORARY: Just keeping existing filters. I will update this block properly after verifying strategy.
     return incidents;
 }
 

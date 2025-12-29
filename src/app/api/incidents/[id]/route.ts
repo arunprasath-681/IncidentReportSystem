@@ -25,13 +25,21 @@ export async function GET(
 
         // Check access: complainant can only view their own incidents
         const isComplainant = incident.complainant_id.toLowerCase() === session.user.email.toLowerCase();
-        const isInvestigatorOrAbove = ["investigator", "approver", "admin"].includes(session.user.role);
+        const isStaff = ["investigator", "approver", "admin", "campus manager"].includes(session.user.role);
         const isReportedIndividual = cases.some(
             (c) => c.reported_individual_id.toLowerCase() === session.user.email.toLowerCase()
         );
 
-        if (!isComplainant && !isInvestigatorOrAbove && !isReportedIndividual) {
+        if (!isComplainant && !isStaff && !isReportedIndividual) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        // Campus Manager Restriction: Can only view if at least one case belongs to their campus
+        if (session.user.role === "campus manager" && session.user.campusCode) {
+            const hasCampusCase = cases.some(c => c.campus === session.user.campusCode);
+            if (!hasCampusCase) {
+                return NextResponse.json({ error: "Forbidden: Not authorized for this campus" }, { status: 403 });
+            }
         }
 
         return NextResponse.json({ incident, cases });

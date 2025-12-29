@@ -43,12 +43,12 @@ export async function sendCaseReportedEmail(
     dateTime: string,
     attachments: string[] = []
 ) {
-    const subject = `New Case Reported Against You - ${incidentId}`;
+    const subject = `Kalvium IRS | New Case Reported`;
     const link = `${APP_URL}/my-cases`;
 
     const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Case Reported Against You</h2>
+
             <p>A new case has been reported where you are listed as the reported individual.</p>
             
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
@@ -87,7 +87,7 @@ export async function sendStatusUpdateEmail(
         complainantEmail?: string;
     }
 ) {
-    const subject = `Case Status Update - ${status} - ${incidentId}`;
+    const subject = `Kalvium IRS | ${status}`;
     const link = `${APP_URL}/my-cases`;
 
     // Logic for displaying specific details based on status
@@ -104,7 +104,6 @@ export async function sendStatusUpdateEmail(
 
     const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Case Status Update</h2>
             <p>${statusMessage}</p>
             
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
@@ -134,12 +133,11 @@ export async function sendAppealConfirmationEmail(
     appealReason: string,
     attachments: string[]
 ) {
-    const subject = `Appeal Submitted - ${incidentId}`;
+    const subject = `Kalvium IRS | Appeal Submitted`;
 
     const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Appeal Submitted</h2>
-            <p>Your appeal for Case ${incidentId} has been successfully submitted and is under review.</p>
+            <p>Your appeal for Case ${incidentId} has been successfully submitted and is under review. We will notify you once a final decision is reached</p>
             
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p><strong>Appeal Description:</strong></p>
@@ -153,7 +151,6 @@ export async function sendAppealConfirmationEmail(
                 ` : ''}
             </div>
 
-            <p>We will notify you once a final decision is reached.</p>
         </div>
     `;
 
@@ -167,14 +164,13 @@ export async function sendAppealNotificationEmail(
     appealReason: string,
     attachments: string[] = []
 ) {
-    const subject = `New Appeal Submitted - ${incidentId}`;
+    const subject = `Kalvium IRS | New Appeal Submitted`;
     const link = `${APP_URL}/investigation-hub/${incidentId}`;
 
     // We send individual emails or bcc? Map over recipients is safer/easier.
     for (const email of to) {
         const html = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2>New Appeal Submitted</h2>
                 <p>An appeal has been submitted for Case ${incidentId}.</p>
                 
                 <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
