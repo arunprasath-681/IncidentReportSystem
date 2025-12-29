@@ -20,6 +20,8 @@ export async function middleware(request: NextRequest) {
     const token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET,
+        // NextAuth v5 uses a different cookie name in production (HTTPS)
+        cookieName: process.env.NODE_ENV === "production" ? "__Secure-authjs.session-token" : "authjs.session-token",
     });
 
     console.log("[Middleware] Path:", pathname);
