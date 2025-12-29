@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import { type JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 import { getUserRoleWithToken, type UserRole } from "./sheets/users";
 
@@ -12,9 +13,16 @@ declare module "next-auth" {
       role: UserRole;
       campusCode?: string;
       isAuthorized: boolean;
-      impersonating?: string; // Email of user being impersonated
+      impersonating?: string;
     };
     accessToken?: string;
+  }
+
+  interface User {
+    role?: UserRole;
+    campusCode?: string;
+    isAuthorized?: boolean;
+    impersonating?: string;
   }
 }
 
