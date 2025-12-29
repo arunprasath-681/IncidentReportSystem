@@ -216,7 +216,7 @@ export async function getCases(
 
 // Get single case by ID
 export async function getCaseById(
-    accessToken: string,
+    accessToken: string | undefined,
     caseId: string
 ): Promise<Case | null> {
     const sheets = await getSheetsClient(accessToken);
@@ -302,7 +302,7 @@ export async function updateCase(
 
 // Submit investigation
 export async function submitInvestigation(
-    accessToken: string,
+    accessToken: string | undefined,
     caseId: string,
     data: {
         categoryOfOffence: string;
@@ -330,7 +330,7 @@ export async function submitInvestigation(
 
 // Record verdict
 export async function recordVerdict(
-    accessToken: string,
+    accessToken: string | undefined,
     caseId: string,
     data: {
         verdict: Verdict;
@@ -370,7 +370,7 @@ export async function recordVerdict(
 
 // Submit appeal
 export async function submitAppeal(
-    accessToken: string,
+    accessToken: string | undefined,
     caseId: string,
     data: {
         appealReason: string;
@@ -411,7 +411,7 @@ export async function submitAppeal(
 
 // Resolve appeal (Final Decision)
 export async function resolveAppeal(
-    accessToken: string,
+    accessToken: string | undefined,
     caseId: string,
     data: {
         reviewComments: string;
