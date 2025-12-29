@@ -14,6 +14,9 @@ export async function middleware(request: NextRequest) {
     }
 
     // Get the token using next-auth/jwt
+    // Debug cookies
+    console.log("[Middleware] Cookies:", request.cookies.getAll().map(c => c.name));
+
     const token = await getToken({
         req: request,
         secret: process.env.NEXTAUTH_SECRET,
