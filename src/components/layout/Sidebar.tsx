@@ -36,14 +36,12 @@ export default function Sidebar() {
     // Build menu items based on role
     const menuItems = [];
 
-    // My Reported Incidents - ALL users EXCEPT student
-    if (role !== "student") {
-        menuItems.push({
-            href: "/reported-by-me",
-            icon: FileText,
-            label: "My Reported Incidents",
-        });
-    }
+    // My Reported Incidents - ALL users
+    menuItems.push({
+        href: "/reported-by-me",
+        icon: FileText,
+        label: "My Reported Incidents",
+    });
 
     // My Cases - ALL users (cases against me)
     menuItems.push({

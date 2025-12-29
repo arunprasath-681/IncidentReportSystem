@@ -43,7 +43,14 @@ async function getSheetHeaders(
 // Convert object to row based on actual sheet headers
 function objectToRowDynamic(headers: string[], obj: Record<string, unknown>): string[] {
     return headers.map((header) => {
-        const value = obj[header];
+        // Try exact match first, then case-insensitive
+        let value = obj[header];
+        if (value === undefined) {
+            const lowerHeader = header.toLowerCase();
+            const key = Object.keys(obj).find(k => k.toLowerCase() === lowerHeader);
+            if (key) value = obj[key];
+        }
+
         if (value === null || value === undefined) return "";
         if (typeof value === "object") return JSON.stringify(value);
         return String(value);
@@ -100,6 +107,22 @@ export async function createIncident(
     return incident;
 }
 
+// Helper to normalize keys to lowercase to ensure matching interface
+function normalizeIncident(row: any): Incident {
+    const normalized: any = {};
+    Object.keys(row).forEach(k => {
+        normalized[k] = row[k];
+        normalized[k.toLowerCase()] = row[k];
+        // Handle explicit snake_case mappings if needed, but for now generic lowercase is good enough
+        // assuming headers like "Incident ID" -> "incident id" (not quite incident_id)
+        // So we might need to be smarter if headers are "Incident ID". 
+        // But current code assumes headers ARE the keys. 
+        // If headers are "incident_id", lowercase works. 
+        // If headers are "Attachments", lowercase "attachments" works.
+    });
+    return normalized as Incident;
+}
+
 // Get all incidents (with optional filters)
 export async function getIncidents(
     accessToken: string | undefined,
@@ -121,7 +144,7 @@ export async function getIncidents(
     if (!rows || rows.length <= 1) return [];
 
     const headers = rows[0] as string[];
-    let incidents = parseRows<Incident>(headers, rows.slice(1) as string[][]);
+    let incidents = parseRows<any>(headers, rows.slice(1) as string[][]).map(normalizeIncident);
 
     // Apply filters
     if (filters?.complainantEmail) {
@@ -159,7 +182,7 @@ export async function getIncidentById(
     if (!rows || rows.length <= 1) return null;
 
     const headers = rows[0] as string[];
-    const incidents = parseRows<Incident>(headers, rows.slice(1) as string[][]);
+    const incidents = parseRows<any>(headers, rows.slice(1) as string[][]).map(normalizeIncident);
 
     return incidents.find((i) => i.incident_id === incidentId) || null;
 }

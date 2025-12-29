@@ -10,6 +10,7 @@ interface Incident {
     description: string;
     date_time_of_incident: string;
     reported_on: string;
+    attachments: string; // JSON string of URLs
 }
 
 interface Case {
@@ -224,6 +225,27 @@ export default function MyCasesView() {
         c.incident_id.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    // Modal helpers
+    function openModal(c: Case) {
+        setSelectedCase(c);
+        setShowAppealModal(true);
+        // If appeal is allowed/active, we might want to default to that view, 
+        // but the requirement is a timeline. We will render the timeline.
+    }
+
+    function getIncidentAttachments(incidentId: string): string[] {
+        try {
+            const inc = incidents[incidentId];
+            if (inc && inc.attachments) {
+                const parsed = JSON.parse(inc.attachments);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (e) {
+            // ignore error
+        }
+        return [];
+    }
+
     return (
         <div>
             <div className="page-header">
@@ -250,204 +272,292 @@ export default function MyCasesView() {
                 </div>
             </div>
 
-            {/* List */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                {loading ? (
-                    <div className="spinner" style={{ margin: "2rem auto" }}></div>
-                ) : filteredCases.length === 0 ? (
-                    <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
-                        <p style={{ color: "var(--muted-foreground)" }}>No cases found.</p>
-                    </div>
-                ) : (
-                    filteredCases.map(c => {
-                        const incident = incidents[c.incident_id];
-                        const appealStatus = canAppeal(c);
-
-                        return (
-                            <div key={c.case_id} className="card">
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-                                    <div>
-                                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                                            <div style={{ fontSize: "0.875rem" }}>
-                                                <span style={{ fontWeight: "600", color: "var(--foreground)" }}>Case ID: </span>
-                                                <span style={{ fontFamily: "monospace" }}>{c.case_id}</span>
+            {/* Modern Table */}
+            <div className="card" style={{ padding: 0, overflow: "hidden", minHeight: "300px" }}>
+                <table className="table">
+                    <thead>
+                        <tr>
+                            <th>Case ID</th>
+                            <th>Incident Date</th>
+                            <th>Status</th>
+                            <th>Verdict</th>
+                            <th style={{ textAlign: "right" }}>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {loading ? (
+                            <tr><td colSpan={5} style={{ textAlign: "center", padding: "3rem" }}><div className="spinner" style={{ margin: "0 auto" }}></div></td></tr>
+                        ) : filteredCases.length === 0 ? (
+                            <tr><td colSpan={5} style={{ textAlign: "center", padding: "3rem", color: "var(--muted-foreground)" }}>No cases found.</td></tr>
+                        ) : (
+                            filteredCases.map(c => {
+                                const incident = incidents[c.incident_id];
+                                const appealStatus = canAppeal(c);
+                                return (
+                                    <tr key={c.case_id}>
+                                        <td>
+                                            <div style={{ display: "flex", flexDirection: "column" }}>
+                                                <span style={{ fontWeight: "500" }}>{c.case_id}</span>
+                                                <span style={{ fontSize: "0.7rem", color: "var(--muted-foreground)" }}>Incident: {c.incident_id}</span>
                                             </div>
-                                            <div style={{ fontSize: "0.875rem" }}>
-                                                <span style={{ fontWeight: "600", color: "var(--foreground)" }}>Incident ID: </span>
-                                                <span style={{ fontFamily: "monospace" }}>{c.incident_id}</span>
-                                            </div>
-                                        </div>
-                                        {incident && (
-                                            <p style={{ fontSize: "0.875rem", marginBottom: "0.5rem" }}>{incident.description}</p>
-                                        )}
-                                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.75rem", color: "var(--muted-foreground)", marginTop: "0.5rem" }}>
-                                            <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                                <Clock size={14} /> Reported On: {incident ? formatDate(incident.reported_on, "MMM d, yyyy") : "-"}
+                                        </td>
+                                        <td>
+                                            {incident ? formatDate(incident.date_time_of_incident, "MMM d, yyyy") : "-"}
+                                        </td>
+                                        <td>
+                                            <span className={`badge ${c.case_status === "Final Decision" || c.case_status === "Closed" ? "badge-closed" :
+                                                c.case_status === "Verdict Given" ? "badge-warning" :
+                                                    c.case_status === "Appealed" ? "badge-pending" :
+                                                        "badge-open"
+                                                }`}
+                                            >
+                                                {c.case_status === "Pending Investigation" ? "Investigation" :
+                                                    c.case_status === "Investigation Submitted" ? "Reviewing" :
+                                                        c.case_status}
                                             </span>
-                                            {incident && incident.date_time_of_incident && (
-                                                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                                    <AlertCircle size={14} /> Incident Date: {formatDate(incident.date_time_of_incident, "MMM d, yyyy HH:mm")}
+                                        </td>
+                                        <td>
+                                            {c.verdict ? (
+                                                <span style={{
+                                                    fontWeight: "500",
+                                                    color: c.verdict === "Guilty" ? "var(--error)" : c.verdict === "Not Guilty" ? "var(--success)" : "inherit"
+                                                }}>
+                                                    {c.verdict}
                                                 </span>
+                                            ) : "-"}
+                                        </td>
+                                        <td style={{ textAlign: "right" }}>
+                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.5rem" }}>
+                                                {c.case_status === "Verdict Given" && appealStatus.allowed && (
+                                                    <button
+                                                        className="btn btn-primary"
+                                                        style={{ padding: "0.375rem 0.75rem", fontSize: "0.75rem", height: "auto" }}
+                                                        onClick={(e) => { e.stopPropagation(); openModal(c); }}
+                                                    >
+                                                        Appeal
+                                                    </button>
+                                                )}
+                                                <button
+                                                    className="btn btn-ghost"
+                                                    style={{ padding: "0.5rem" }}
+                                                    onClick={() => openModal(c)}
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Detailed Timeline Modal */}
+            {showAppealModal && selectedCase && (
+                <div style={{
+                    position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50
+                }} onClick={() => setShowAppealModal(false)}>
+                    <div style={{
+                        backgroundColor: "var(--background)", borderRadius: "var(--radius)", border: "1px solid var(--border)",
+                        width: "100%", maxWidth: "700px", maxHeight: "90vh", overflowY: "auto",
+                        padding: "0"
+                    }} onClick={e => e.stopPropagation()}>
+
+                        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <h3 style={{ fontWeight: "600", fontSize: "1.125rem" }}>Case Timeline</h3>
+                            <button onClick={() => setShowAppealModal(false)} className="btn btn-ghost" style={{ padding: "0.25rem" }}><X size={20} /></button>
+                        </div>
+
+                        <div style={{ padding: "1.5rem" }}>
+                            {/* Timeline Container */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+
+                                {/* Step 1: Incident */}
+                                <div style={{ display: "flex", gap: "1rem" }}>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                        <div style={{ width: "2rem", height: "2rem", borderRadius: "50%", backgroundColor: "var(--primary)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 2 }}><AlertCircle size={14} /></div>
+                                        <div style={{ width: "2px", flexGrow: 1, backgroundColor: "var(--border)", minHeight: "2rem" }}></div>
+                                    </div>
+                                    <div style={{ paddingBottom: "2rem", width: "100%" }}>
+                                        <h4 style={{ fontWeight: "600", fontSize: "1rem" }}>Incident Reported</h4>
+                                        <p style={{ fontSize: "0.8rem", color: "var(--muted-foreground)", marginBottom: "0.5rem" }}>
+                                            {incidents[selectedCase.incident_id]?.reported_on ? formatDate(incidents[selectedCase.incident_id].reported_on, "MMM d, yyyy h:mm a") : "-"}
+                                        </p>
+                                        <div style={{ backgroundColor: "var(--muted)", padding: "1rem", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+                                            <p style={{ fontSize: "0.875rem", whiteSpace: "pre-wrap" }}>{incidents[selectedCase.incident_id]?.description}</p>
+                                            <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted-foreground)" }}>
+                                                Incident Date: {incidents[selectedCase.incident_id]?.date_time_of_incident ? formatDate(incidents[selectedCase.incident_id].date_time_of_incident, "MMM d, yyyy h:mm a") : "-"}
+                                            </div>
+
+                                            {/* Attachments */}
+                                            {getIncidentAttachments(selectedCase.incident_id).length > 0 && (
+                                                <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+                                                    <p style={{ fontSize: "0.75rem", fontWeight: "600", marginBottom: "0.5rem", color: "var(--muted-foreground)" }}>ATTACHMENTS</p>
+                                                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                                                        {getIncidentAttachments(selectedCase.incident_id).map((url, i) => (
+                                                            <a
+                                                                key={i}
+                                                                href={url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                style={{
+                                                                    fontSize: "0.75rem",
+                                                                    display: "flex",
+                                                                    alignItems: "center",
+                                                                    gap: "0.375rem",
+                                                                    padding: "0.375rem 0.625rem",
+                                                                    backgroundColor: "var(--background)",
+                                                                    border: "1px solid var(--border)",
+                                                                    borderRadius: "var(--radius)",
+                                                                    textDecoration: "none",
+                                                                    color: "var(--foreground)"
+                                                                }}
+                                                            >
+                                                                <FileText size={12} /> Evidence {i + 1}
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
-                                    <div style={{ textAlign: "right", minWidth: "150px" }}>
-                                        <span className={`badge ${c.case_status === "Final Decision" || c.case_status === "Closed" ? "badge-closed" :
-                                            c.case_status === "Verdict Given" ? "badge-warning" :
-                                                "badge-open"
-                                            }`}
-                                            style={c.case_status === "Appealed" ? { backgroundColor: "#8b5cf6", color: "white" } : {}}
-                                        >
-                                            {c.case_status === "Pending Investigation" ? "Investigation in Progress" :
-                                                c.case_status === "Investigation Submitted" ? "Review Pending" :
-                                                    c.case_status}
-                                        </span>
+                                </div>
 
-                                        {(c.case_status === "Verdict Given" || c.case_status === "Final Decision" || c.case_status === "Appealed") && (
-                                            <div style={{ marginTop: "0.75rem", fontSize: "0.875rem", fontWeight: "500" }}>
-                                                Verdict: <span style={{
-                                                    color: c.verdict === "Guilty" ? "var(--error)" :
-                                                        c.verdict === "Not Guilty" ? "var(--success)" : "inherit"
-                                                }}>{c.verdict}</span>
+                                {/* Step 2: Investigation */}
+                                <div style={{ display: "flex", gap: "1rem" }}>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                        <div style={{ width: "2rem", height: "2rem", borderRadius: "50%", backgroundColor: selectedCase.case_status !== "Pending Investigation" ? "var(--primary)" : "var(--muted)", color: selectedCase.case_status !== "Pending Investigation" ? "white" : "var(--muted-foreground)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 2 }}><Search size={14} /></div>
+                                        <div style={{ width: "2px", flexGrow: 1, backgroundColor: "var(--border)", minHeight: "2rem" }}></div>
+                                    </div>
+                                    <div style={{ paddingBottom: "2rem", width: "100%" }}>
+                                        <h4 style={{ fontWeight: "600", fontSize: "1rem" }}>Investigation</h4>
+                                        <p style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>
+                                            Status: <span className="badge badge-open">{selectedCase.case_status === "Pending Investigation" ? "In Progress" : "Completed"}</span>
+                                        </p>
+                                        {selectedCase.case_comments && (
+                                            <div style={{ marginTop: "0.5rem", padding: "0.75rem", backgroundColor: "var(--muted)", borderRadius: "var(--radius)", fontSize: "0.875rem", fontStyle: "italic" }}>
+                                                "{selectedCase.case_comments}"
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
-                                <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                    <div style={{ fontSize: "0.875rem" }}>
-                                        <span style={{ color: "var(--muted-foreground)" }}>Category: </span>
-                                        {c.category_of_offence || "-"}
-                                    </div>
-
-                                    {c.case_status === "Verdict Given" && (
-                                        appealStatus.allowed ? (
-                                            <button
-                                                className="btn btn-primary"
-                                                onClick={() => {
-                                                    setSelectedCase(c);
-                                                    setAppealReason("");
-                                                    setUploadedFiles([]);
-                                                    setShowAppealModal(true);
-                                                }}
-                                            >
-                                                Appeal Verdict
-                                            </button>
-                                        ) : (
-                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", maxWidth: "200px", textAlign: "right" }}>
-                                                Appeal not available: {appealStatus.reason}
-                                            </div>
-                                        )
-                                    )}
-                                    {c.case_status === "Appealed" && (
-                                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--warning)" }}>
-                                            <Clock size={16} /> Appeal Under Review
+                                {/* Step 3: Verdict */}
+                                {(selectedCase.verdict || selectedCase.case_status !== "Pending Investigation") && (
+                                    <div style={{ display: "flex", gap: "1rem" }}>
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                            <div style={{ width: "2rem", height: "2rem", borderRadius: "50%", backgroundColor: selectedCase.verdict ? "var(--primary)" : "var(--muted)", color: selectedCase.verdict ? "white" : "var(--muted-foreground)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 2 }}><FileText size={14} /></div>
+                                            <div style={{ width: "2px", flexGrow: 1, backgroundColor: "var(--border)", minHeight: "2rem" }}></div>
                                         </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })
-                )}
-            </div>
-
-            {/* Appeal Modal */}
-            {
-                showAppealModal && selectedCase && (
-                    <div style={{
-                        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50
-                    }}>
-                        <div style={{ backgroundColor: "var(--background)", borderRadius: "var(--radius)", width: "100%", maxWidth: "600px", maxHeight: "90vh", overflowY: "auto", padding: "1.5rem" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-                                <h2 style={{ fontSize: "1.25rem", fontWeight: "600" }}>Submit Appeal</h2>
-                                <button onClick={() => setShowAppealModal(false)}><X size={20} /></button>
-                            </div>
-
-                            <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "var(--muted)", borderRadius: "var(--radius)", fontSize: "0.875rem" }}>
-                                <h3 style={{ fontWeight: "600", marginBottom: "0.5rem" }}>Case Details</h3>
-                                <p style={{ marginBottom: "0.25rem" }}><strong>Incident Description:</strong> {incidents[selectedCase.incident_id]?.description || "N/A"}</p>
-                                <p style={{ marginBottom: "0.25rem" }}><strong>Case ID:</strong> {selectedCase.case_id}</p>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginTop: "0.5rem" }}>
-                                    <p><strong>Verdict:</strong> {selectedCase.verdict}</p>
-                                    <p><strong>Level:</strong> {selectedCase.level_of_offence}</p>
-                                    <p><strong>Category:</strong> {selectedCase.category_of_offence}</p>
-                                    <p><strong>Sub-Category:</strong> {selectedCase.sub_category_of_offence}</p>
-                                </div>
-                                {selectedCase.case_comments && (
-                                    <div style={{ marginTop: "0.5rem", borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
-                                        <p><strong>Investigator Comments:</strong></p>
-                                        <p style={{ fontStyle: "italic", color: "var(--muted-foreground)" }}>{selectedCase.case_comments}</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="form-group">
-                                <label className="label">Appeal Description <span style={{ color: "var(--error)" }}>*</span></label>
-                                <textarea
-                                    className="input"
-                                    style={{ minHeight: "150px", resize: "vertical" }}
-                                    value={appealReason}
-                                    onChange={(e) => setAppealReason(e.target.value)}
-                                    placeholder="Explain why you are appealing this verdict..."
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label className="label">Attachments (Optional)</label>
-                                <div
-                                    style={{
-                                        border: "2px dashed var(--border)",
-                                        borderRadius: "var(--radius)",
-                                        padding: "1.5rem",
-                                        textAlign: "center",
-                                        cursor: "pointer",
-                                        backgroundColor: "var(--muted)"
-                                    }}
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <Upload size={24} style={{ margin: "0 auto 0.5rem", color: "var(--muted-foreground)" }} />
-                                    <p style={{ fontSize: "0.875rem" }}>Click to upload evidence</p>
-                                    <p style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Max 5 files, 10MB each</p>
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        style={{ display: "none" }}
-                                        multiple
-                                        accept="image/*,application/pdf,.doc,.docx"
-                                        onChange={handleFileSelect}
-                                    />
-                                </div>
-
-                                {uploadedFiles.length > 0 && (
-                                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "1rem" }}>
-                                        {uploadedFiles.map((file, i) => (
-                                            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", overflow: "hidden" }}>
-                                                    {file.type === "image" ? <Eye size={16} /> : <FileText size={16} />}
-                                                    <span style={{ fontSize: "0.875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{file.file.name}</span>
+                                        <div style={{ paddingBottom: "2rem", width: "100%" }}>
+                                            <h4 style={{ fontWeight: "600", fontSize: "1rem" }}>Verdict</h4>
+                                            {selectedCase.verdict ? (
+                                                <div style={{ marginTop: "0.5rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                                                    <div style={{ padding: "0.75rem", backgroundColor: selectedCase.verdict === "Guilty" ? "rgba(239, 68, 68, 0.1)" : "rgba(34, 197, 94, 0.1)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                        <span style={{ fontWeight: "600", color: selectedCase.verdict === "Guilty" ? "var(--error)" : "var(--success)" }}>{selectedCase.verdict}</span>
+                                                        {selectedCase.punishment && <span style={{ fontSize: "0.8rem" }}>{selectedCase.punishment}</span>}
+                                                    </div>
+                                                    <div style={{ padding: "1rem", backgroundColor: "var(--card)", fontSize: "0.875rem" }}>
+                                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                                                            <div><span style={{ color: "var(--muted-foreground)" }}>Category:</span> {selectedCase.category_of_offence}</div>
+                                                            <div><span style={{ color: "var(--muted-foreground)" }}>Level:</span> {selectedCase.level_of_offence}</div>
+                                                            {selectedCase.sub_category_of_offence && <div style={{ gridColumn: "span 2" }}><span style={{ color: "var(--muted-foreground)" }}>Details:</span> {selectedCase.sub_category_of_offence}</div>}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <button onClick={() => removeFile(i)} style={{ color: "var(--muted-foreground)" }}><X size={16} /></button>
-                                            </div>
-                                        ))}
+                                            ) : (
+                                                <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>Waiting for decision...</p>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
-                            </div>
 
-                            <div style={{ display: "flex", justifyContent: "flex-end", gap: "1rem", marginTop: "2rem" }}>
-                                <button className="btn btn-ghost" onClick={() => setShowAppealModal(false)}>Cancel</button>
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={submitAppeal}
-                                    disabled={appealing || uploading}
-                                >
-                                    {appealing || uploading ? "Submitting..." : "Submit Appeal"}
-                                </button>
+                                {/* Step 4: Appeal (Form or Display) */}
+                                {(canAppeal(selectedCase).allowed || selectedCase.case_status === "Appealed" || selectedCase.appeal_reason) && (
+                                    <div style={{ display: "flex", gap: "1rem" }}>
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                            <div style={{ width: "2rem", height: "2rem", borderRadius: "50%", backgroundColor: (selectedCase.case_status === "Appealed" || appealing) ? "var(--warning)" : "var(--muted)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 2 }}><AlertTriangle size={14} /></div>
+                                            <div style={{ width: "2px", flexGrow: 1, backgroundColor: "var(--border)", minHeight: "2rem" }}></div>
+                                        </div>
+                                        <div style={{ paddingBottom: "2rem", width: "100%" }}>
+                                            <h4 style={{ fontWeight: "600", fontSize: "1rem" }}>Appeal</h4>
+
+                                            {/* Logic: Show Form if allowed allowed, Show Content if appealed */}
+                                            {selectedCase.case_status === "Verdict Given" && canAppeal(selectedCase).allowed ? (
+                                                <div style={{ marginTop: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "1.5rem" }}>
+                                                    <h5 style={{ fontWeight: "500", marginBottom: "1rem" }}>Submit your appeal</h5>
+                                                    <div className="form-group">
+                                                        <label className="label">Reason for Appeal</label>
+                                                        <textarea
+                                                            className="input"
+                                                            value={appealReason}
+                                                            onChange={e => setAppealReason(e.target.value)}
+                                                            placeholder="Why do you disagree with the verdict?"
+                                                            style={{ minHeight: "100px" }}
+                                                        />
+                                                    </div>
+                                                    <div className="form-group">
+                                                        <label className="label">Attachments</label>
+                                                        <div onClick={() => fileInputRef.current?.click()} style={{ border: "2px dashed var(--border)", borderRadius: "var(--radius)", padding: "1rem", textAlign: "center", cursor: "pointer", backgroundColor: "var(--muted)" }}>
+                                                            <Upload size={20} style={{ margin: "0 auto", color: "var(--muted-foreground)" }} />
+                                                            <p style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>Upload evidence</p>
+                                                            <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple style={{ display: "none" }} />
+                                                        </div>
+                                                        {uploadedFiles.length > 0 && (
+                                                            <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                                                                {uploadedFiles.map((f, i) => (
+                                                                    <div key={i} style={{ fontSize: "0.75rem", padding: "0.25rem 0.5rem", backgroundColor: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                                                        {f.file.name} <button onClick={() => removeFile(i)}><X size={12} /></button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
+                                                        <button className="btn btn-primary" onClick={submitAppeal} disabled={appealing || uploading}>
+                                                            {appealing ? "Submitting..." : "Submit Appeal"}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : selectedCase.appeal_reason ? (
+                                                <div style={{ marginTop: "0.5rem", backgroundColor: "var(--muted)", padding: "1rem", borderRadius: "var(--radius)" }}>
+                                                    <p style={{ fontSize: "0.875rem", fontStyle: "italic" }}>"{selectedCase.appeal_reason}"</p>
+                                                    {/* Attachments if any could go here if we saved them in a way we can read back easily. For now just text. */}
+                                                    <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "var(--muted-foreground)" }}>
+                                                        Submitted on: {selectedCase.appeal_submitted_at ? formatDate(selectedCase.appeal_submitted_at, "MMM d, yyyy") : "Recently"}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>No appeal submitted.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 5: Final Decision (Placeholder) */}
+                                <div style={{ display: "flex", gap: "1rem" }}>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                        <div style={{ width: "2rem", height: "2rem", borderRadius: "50%", backgroundColor: selectedCase.case_status === "Final Decision" ? "var(--success)" : "var(--muted)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 2 }}><CheckCircle size={14} /></div>
+                                        {/* Last item so no line */}
+                                    </div>
+                                    <div>
+                                        <h4 style={{ fontWeight: "600", fontSize: "1rem" }}>Final Decision</h4>
+                                        {selectedCase.case_status === "Final Decision" ? (
+                                            <p style={{ marginTop: "0.25rem", color: "var(--success)", fontWeight: "500" }}>Case Closed</p>
+                                        ) : (
+                                            <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>Pending final review</p>
+                                        )}
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
                     </div>
-                )
-            }
+                </div>
+            )}
         </div >
     );
 }
