@@ -36,7 +36,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: "openid email profile https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file",
+          scope: "openid email profile",
           access_type: "offline",
           prompt: "consent",
         },
@@ -51,9 +51,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       // Fetch user role from spreadsheet after login
-      if (token.accessToken && token.email && token.role === undefined) {
+      if (token.email && token.role === undefined) {
         try {
-          const roleInfo = await getUserRoleWithToken(token.accessToken as string, token.email as string);
+          // We no longer need the user's access token for sheet operations
+          const roleInfo = await getUserRoleWithToken(undefined, token.email as string);
           token.role = roleInfo.role;
           token.campusCode = roleInfo.campusCode;
           token.isAuthorized = roleInfo.isAuthorized;

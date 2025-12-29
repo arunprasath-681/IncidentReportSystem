@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { getSpreadsheetId, parseRows } from "./client";
+import { getSpreadsheetId, parseRows, getSheetsClient } from "./client";
 
 export type UserRole =
     | "admin"
@@ -56,16 +56,10 @@ export async function getUserRole(email: string): Promise<RoleInfo> {
 
 // Fetch user role with access token (called from API routes after login)
 export async function getUserRoleWithToken(
-    accessToken: string,
+    accessToken: string | undefined,
     email: string
 ): Promise<RoleInfo> {
-    const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET
-    );
-
-    oauth2Client.setCredentials({ access_token: accessToken });
-    const sheets = google.sheets({ version: "v4", auth: oauth2Client });
+    const sheets = await getSheetsClient(accessToken);
     const spreadsheetId = getSpreadsheetId();
 
     try {
@@ -163,15 +157,9 @@ export async function getUserRoleWithToken(
 
 // Get all authorized users (for admin impersonation)
 export async function getAllAuthorizedUsers(
-    accessToken: string
+    accessToken: string | undefined
 ): Promise<Array<{ email: string; name: string; role: string }>> {
-    const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET
-    );
-
-    oauth2Client.setCredentials({ access_token: accessToken });
-    const sheets = google.sheets({ version: "v4", auth: oauth2Client });
+    const sheets = await getSheetsClient(accessToken);
     const spreadsheetId = getSpreadsheetId();
 
     const results: Array<{ email: string; name: string; role: string }> = [];
@@ -220,7 +208,7 @@ export async function getAllAuthorizedUsers(
 
 // Search users by email (for autocomplete in forms)
 export async function searchUsers(
-    accessToken: string,
+    accessToken: string | undefined,
     query: string
 ): Promise<Array<{
     email: string;
@@ -230,13 +218,7 @@ export async function searchUsers(
     squad_number?: string;
     status?: string;
 }>> {
-    const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET
-    );
-
-    oauth2Client.setCredentials({ access_token: accessToken });
-    const sheets = google.sheets({ version: "v4", auth: oauth2Client });
+    const sheets = await getSheetsClient(accessToken);
     const spreadsheetId = getSpreadsheetId();
 
     const results: Array<{
@@ -316,16 +298,10 @@ export async function searchUsers(
 
 // Get user details by email
 export async function getUserByEmail(
-    accessToken: string,
+    accessToken: string | undefined,
     email: string
 ): Promise<{ name: string; campusCode: string; squadNumber?: string; type: "student" | "staff" } | null> {
-    const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET
-    );
-
-    oauth2Client.setCredentials({ access_token: accessToken });
-    const sheets = google.sheets({ version: "v4", auth: oauth2Client });
+    const sheets = await getSheetsClient(accessToken);
     const spreadsheetId = getSpreadsheetId();
 
     try {

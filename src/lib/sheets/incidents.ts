@@ -1,5 +1,5 @@
-import { google } from "googleapis";
-import { getSpreadsheetId, parseRows, findRowIndex, formatDateForStorage, parseDateFromStorage } from "./client";
+import { google, sheets_v4 } from "googleapis";
+import { getSpreadsheetId, parseRows, findRowIndex, formatDateForStorage, parseDateFromStorage, getSheetsClient } from "./client";
 import { v4 as uuidv4 } from "uuid";
 
 export interface Incident {
@@ -25,18 +25,11 @@ export interface CreateIncidentInput {
     metadata?: Record<string, unknown>;
 }
 
-function getSheetsClient(accessToken: string) {
-    const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET
-    );
-    oauth2Client.setCredentials({ access_token: accessToken });
-    return google.sheets({ version: "v4", auth: oauth2Client });
-}
+// Local getSheetsClient removed to use one from ./client
 
 // Get headers from the sheet
 async function getSheetHeaders(
-    sheets: ReturnType<typeof getSheetsClient>,
+    sheets: sheets_v4.Sheets,
     sheetName: string
 ): Promise<string[]> {
     const spreadsheetId = getSpreadsheetId();
@@ -59,10 +52,10 @@ function objectToRowDynamic(headers: string[], obj: Record<string, unknown>): st
 
 // Create a new incident
 export async function createIncident(
-    accessToken: string,
+    accessToken: string | undefined,
     input: CreateIncidentInput
 ): Promise<Incident> {
-    const sheets = getSheetsClient(accessToken);
+    const sheets = await getSheetsClient(accessToken);
     const spreadsheetId = getSpreadsheetId();
 
     // Get actual headers from the sheet
@@ -109,14 +102,14 @@ export async function createIncident(
 
 // Get all incidents (with optional filters)
 export async function getIncidents(
-    accessToken: string,
+    accessToken: string | undefined,
     filters?: {
         complainantEmail?: string;
         status?: "Open" | "Closed";
         campusCode?: string;
     }
 ): Promise<Incident[]> {
-    const sheets = getSheetsClient(accessToken);
+    const sheets = await getSheetsClient(accessToken);
     const spreadsheetId = getSpreadsheetId();
 
     const response = await sheets.spreadsheets.values.get({
@@ -151,10 +144,10 @@ export async function getIncidents(
 
 // Get single incident by ID
 export async function getIncidentById(
-    accessToken: string,
+    accessToken: string | undefined,
     incidentId: string
 ): Promise<Incident | null> {
-    const sheets = getSheetsClient(accessToken);
+    const sheets = await getSheetsClient(accessToken);
     const spreadsheetId = getSpreadsheetId();
 
     const response = await sheets.spreadsheets.values.get({
@@ -173,12 +166,12 @@ export async function getIncidentById(
 
 // Update incident
 export async function updateIncident(
-    accessToken: string,
+    accessToken: string | undefined,
     incidentId: string,
     updates: Partial<Incident>,
     updatedBy: string
 ): Promise<Incident | null> {
-    const sheets = getSheetsClient(accessToken);
+    const sheets = await getSheetsClient(accessToken);
     const spreadsheetId = getSpreadsheetId();
 
     // Get actual headers from the sheet
@@ -226,7 +219,7 @@ export async function updateIncident(
 
 // Check if all cases for an incident are in Final Decision status
 export async function checkIncidentClosure(
-    accessToken: string,
+    accessToken: string | undefined,
     incidentId: string
 ): Promise<boolean> {
     // This will be implemented after cases service

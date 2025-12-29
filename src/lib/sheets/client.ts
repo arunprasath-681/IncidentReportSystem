@@ -2,17 +2,18 @@ import { google, sheets_v4 } from "googleapis";
 
 let sheetsClient: sheets_v4.Sheets | null = null;
 
-export async function getSheetsClient(accessToken: string): Promise<sheets_v4.Sheets> {
-    const oauth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET
-    );
-
-    oauth2Client.setCredentials({
-        access_token: accessToken,
+export async function getSheetsClient(accessToken?: string): Promise<sheets_v4.Sheets> {
+    const auth = new google.auth.GoogleAuth({
+        credentials: {
+            client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+            private_key: (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+        },
+        scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
-    return google.sheets({ version: "v4", auth: oauth2Client });
+    const client = await auth.getClient();
+
+    return google.sheets({ version: "v4", auth: client as any });
 }
 
 export function getSpreadsheetId(): string {
