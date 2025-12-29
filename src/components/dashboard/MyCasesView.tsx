@@ -9,7 +9,6 @@ interface Incident {
     incident_id: string;
     description: string;
     date_time_of_incident: string;
-    location?: string;
     reported_on: string;
 }
 
@@ -245,7 +244,7 @@ export default function MyCasesView() {
     interface TimelineEvent {
         title: string;
         date: string;
-        content?: React.ReactNode;
+        description: string;
         icon: React.ElementType;
         color: string;
     }
@@ -258,15 +257,7 @@ export default function MyCasesView() {
             events.push({
                 title: "Incident Reported",
                 date: formatDate(incident.reported_on, "MMM d, yyyy h:mm a"),
-                content: (
-                    <div style={{ backgroundColor: "var(--muted)", padding: "1rem", borderRadius: "8px", marginTop: "0.5rem" }}>
-                        <p style={{ fontWeight: "500", marginBottom: "0.5rem" }}>{incident.description}</p>
-                        <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.875rem", color: "var(--secondary-foreground)" }}>
-                            <span><strong>ID:</strong> {c.incident_id}</span>
-                            <span><strong>Location:</strong> {incident.location || "N/A"}</span>
-                        </div>
-                    </div>
-                ),
+                description: "Incident report created and case initiated.",
                 icon: AlertCircle,
                 color: "var(--foreground)"
             });
@@ -288,22 +279,9 @@ export default function MyCasesView() {
 
                     if (status === "Investigation Submitted") {
                         events.push({
-                            title: "Investigation Findings",
+                            title: "Investigation Submitted",
                             date: dateStr,
-                            content: (
-                                <div style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "1rem", marginTop: "0.5rem" }}>
-                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                                        <div>
-                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Category</div>
-                                            <div style={{ fontWeight: "500" }}>{c.category_of_offence || "-"}</div>
-                                        </div>
-                                        <div>
-                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Level</div>
-                                            <div style={{ fontWeight: "500" }}>{c.level_of_offence || "-"}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ),
+                            description: "Investigation findings submitted for review.",
                             icon: Clock,
                             color: "var(--orange)"
                         });
@@ -311,62 +289,23 @@ export default function MyCasesView() {
                         events.push({
                             title: "Verdict Recorded",
                             date: dateStr,
-                            content: (
-                                <div style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "1rem", marginTop: "0.5rem" }}>
-                                    <div style={{ marginBottom: "1rem" }}>
-                                        <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Verdict</div>
-                                        <div style={{ fontWeight: "600", fontSize: "1.1rem", color: c.verdict === "Guilty" ? "var(--error)" : "var(--success)" }}>
-                                            {c.verdict}
-                                        </div>
-                                    </div>
-                                    {c.punishment && (
-                                        <div style={{ padding: "0.75rem", backgroundColor: "rgba(239, 68, 68, 0.1)", borderRadius: "6px", marginBottom: "1rem" }}>
-                                            <div style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--error)", marginBottom: "0.25rem" }}>PUNISHMENT</div>
-                                            <div style={{ color: "var(--foreground)" }}>{c.punishment}</div>
-                                        </div>
-                                    )}
-                                    {c.case_comments && (
-                                        <div>
-                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "0.25rem" }}>Investigator Comments</div>
-                                            <p style={{ fontStyle: "italic", fontSize: "0.9rem" }}>"{c.case_comments}"</p>
-                                        </div>
-                                    )}
-                                </div>
-                            ),
+                            description: `Verdict: ${c.verdict}`,
                             icon: CheckCircle,
                             color: c.verdict === "Guilty" ? "var(--error)" : "var(--success)"
                         });
                     } else if (status === "Appealed") {
-                        const attachments = getAppealAttachments(c);
                         events.push({
                             title: "Appeal Submitted",
                             date: dateStr,
-                            content: (
-                                <div style={{ border: "1px solid var(--purple-light, #e9d5ff)", borderRadius: "8px", padding: "1rem", backgroundColor: "var(--purple-bg, #f3e8ff)", marginTop: "0.5rem" }}>
-                                    <p style={{ whiteSpace: "pre-wrap", fontSize: "0.95rem", color: "#3b0764", marginBottom: "1rem" }}>{c.appeal_reason}</p>
-                                    {attachments.length > 0 && (
-                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                                            {attachments.map((url, i) => (
-                                                <a key={i} href={url} target="_blank" rel="noreferrer" className="badge" style={{ backgroundColor: "white", border: "1px solid #d8b4fe", color: "#6b21a8", display: "flex", alignItems: "center", gap: "0.25rem", textDecoration: "none" }}>
-                                                    <FileText size={12} /> Attachment {i + 1}
-                                                </a>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ),
+                            description: "Appeal filed by reported individual.",
                             icon: AlertTriangle,
                             color: "var(--purple)"
                         });
                     } else if (status === "Final Decision") {
                         events.push({
-                            title: "Review Board Decision",
+                            title: "Final Decision",
                             date: dateStr,
-                            content: c.review_comments ? (
-                                <div style={{ border: "1px solid var(--border)", borderRadius: "8px", padding: "1rem", marginTop: "0.5rem", backgroundColor: "var(--background)" }}>
-                                    <p style={{ fontSize: "0.95rem" }}>{c.review_comments}</p>
-                                </div>
-                            ) : null,
+                            description: "Final decision reached by review board.",
                             icon: CheckCircle,
                             color: "var(--foreground)"
                         });
@@ -600,19 +539,17 @@ export default function MyCasesView() {
                                         {(() => {
                                             const timeline = getTimelineEvents(selectedCase, incident);
                                             return timeline.map((event, index) => (
-                                                <div key={index} style={{ position: "relative", display: "flex", gap: "1rem", marginBottom: "2rem" }}>
+                                                <div key={index} style={{ position: "relative", display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
                                                     <div style={{
                                                         width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "var(--background)", border: `2px solid ${event.color}`,
                                                         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1, flexShrink: 0
                                                     }}>
                                                         <event.icon size={16} color={event.color} />
                                                     </div>
-                                                    <div style={{ paddingTop: "0.25rem", flex: 1 }}>
-                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                                                            <div style={{ fontWeight: "600", fontSize: "0.95rem" }}>{event.title}</div>
-                                                            <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{event.date}</div>
-                                                        </div>
-                                                        {event.content}
+                                                    <div style={{ paddingTop: "0.25rem" }}>
+                                                        <div style={{ fontWeight: "600", fontSize: "0.95rem" }}>{event.title}</div>
+                                                        <div style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "0.25rem" }}>{event.date}</div>
+                                                        <div style={{ fontSize: "0.875rem" }}>{event.description}</div>
                                                     </div>
                                                 </div>
                                             ));
