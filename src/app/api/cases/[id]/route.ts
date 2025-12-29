@@ -273,6 +273,27 @@ export async function PATCH(
                 break;
             }
 
+            case "edit_investigation": {
+                if (!["approver", "admin"].includes(role)) {
+                    return NextResponse.json({ error: "Forbidden - not an approver" }, { status: 403 });
+                }
+
+                updatedCase = await updateCase(
+                    session.accessToken,
+                    id,
+                    {
+                        category_of_offence: body.data.categoryOfOffence,
+                        sub_category_of_offence: body.data.subCategoryOfOffence,
+                        level_of_offence: body.data.levelOfOffence,
+                        campus: body.data.campus,
+                        squad: body.data.squad,
+                        case_comments: body.data.caseComments,
+                    },
+                    session.user.email
+                );
+                break;
+            }
+
             default:
                 return NextResponse.json({ error: "Invalid action" }, { status: 400 });
         }
