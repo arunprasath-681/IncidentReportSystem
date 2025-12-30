@@ -264,10 +264,8 @@ export async function getCases(
         );
     }
 
-    // Sort by last_updated_at descending (latest first)
-    cases.sort((a, b) =>
-        parseDateFromStorage(b.last_updated_at).getTime() - parseDateFromStorage(a.last_updated_at).getTime()
-    );
+    // Sort by case_id descending (latest first)
+    cases.sort((a, b) => b.case_id.localeCompare(a.case_id));
 
     return cases;
 }

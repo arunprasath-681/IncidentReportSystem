@@ -101,7 +101,7 @@ export default function MyCasesView() {
         const isSCOC = c.category_of_offence === "Breach of student code of conduct";
         const isICOC = c.category_of_offence === "Breach of internship code of conduct";
 
-        const eligible = (isSCOC && level === 4) || (isICOC && level === 3);
+        const eligible = (isSCOC && level >= 4) || (isICOC && level >= 3);
         if (!eligible) return { allowed: false, reason: "Level of offence not eligible for appeal" };
 
         // Check 7 day window

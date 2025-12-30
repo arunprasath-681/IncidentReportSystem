@@ -236,12 +236,8 @@ export async function getIncidents(
     // Actually, I'll update the comment and defer implementation until I check `cases.ts`.
 
     // TEMPORARY: Just keeping existing filters. I will update this block properly after verifying strategy.
-    // Sort by last_updated_at descending (latest first)
-    incidents.sort((a, b) => {
-        const dateA = parseDateFromStorage(a.last_updated_at).getTime();
-        const dateB = parseDateFromStorage(b.last_updated_at).getTime();
-        return dateB - dateA;
-    });
+    // Sort by incident_id descending (latest first)
+    incidents.sort((a, b) => b.incident_id.localeCompare(a.incident_id));
 
     return incidents;
 }

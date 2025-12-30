@@ -50,8 +50,8 @@ export default function Sidebar() {
         label: "Reported Against Me",
     });
 
-    // Investigation Hub - investigator, campus manager, approver, admin
-    if (["investigator", "campus manager", "approver", "admin"].includes(role)) {
+    // Investigation Hub - investigator, campus manager, admin
+    if (["investigator", "campus manager", "admin"].includes(role)) {
         menuItems.push({
             href: "/investigation-hub",
             icon: Search,
