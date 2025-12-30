@@ -8,7 +8,7 @@ import { sendCaseReportedEmail } from "@/lib/email";
 
 const createIncidentSchema = z.object({
     dateTimeOfIncident: z.string(),
-    description: z.string().min(10, "Description must be at least 10 characters"),
+    description: z.string().min(40, "Description must be at least 40 characters"),
     attachments: z.array(z.string()).optional(),
     reportedIndividuals: z.array(z.string().email()).min(1, "At least one reported individual is required"),
     relayedFromCompany: z.boolean().optional(),

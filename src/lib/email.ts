@@ -43,13 +43,13 @@ export async function sendCaseReportedEmail(
     dateTime: string,
     attachments: string[] = []
 ) {
-    const subject = `Kalvium IRS | New Case Reported`;
+    const subject = `New Incident Reported`;
     const link = `${APP_URL}/my-cases`;
 
     const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
 
-            <p>A new case has been reported where you are listed as the reported individual.</p>
+            <p>A new incident has been reported where you are listed as the reported individual.</p>
             
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p><strong>Incident ID:</strong> ${incidentId}</p>
@@ -65,8 +65,8 @@ export async function sendCaseReportedEmail(
                 ` : ''}
             </div>
 
-            <p>You can view the details of this case by logging into the portal.</p>
-            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Case</a></p>
+            <p>You can view the details of this incident by logging into the portal.</p>
+            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Incident</a></p>
         </div>
     `;
 
@@ -87,19 +87,19 @@ export async function sendStatusUpdateEmail(
         complainantEmail?: string;
     }
 ) {
-    const subject = `Kalvium IRS | ${status}`;
+    const subject = `The status of your incident has changed | ${status}`;
     const link = `${APP_URL}/my-cases`;
 
     // Logic for displaying specific details based on status
     let statusMessage = "";
     if (status === "Verdict Given") {
-        statusMessage = "A verdict has been recorded for your case. If you have been found Guilty, you may be eligible to appeal within 7 days.";
+        statusMessage = "A verdict has been recorded for your incident. If you have been found Guilty, you may be eligible to appeal within 7 days.";
     } else if (status === "Final Decision") {
-        statusMessage = "A final decision has been reached for your case. This decision is final and cannot be appealed further.";
+        statusMessage = "A final decision has been reached for your incident. This decision is final and cannot be appealed further.";
     } else if (status === "Appealed") {
         statusMessage = "Your appeal has been submitted and is currently under review.";
     } else {
-        statusMessage = `The status of your case has changed to: ${status}`;
+        statusMessage = `The status of your incident has changed to: ${status}`;
     }
 
     const html = `
@@ -120,7 +120,7 @@ export async function sendStatusUpdateEmail(
                 ${details.complainantEmail ? `<p><strong>Complainant:</strong> ${details.complainantEmail}</p>` : ''}
             </div>
 
-            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Case Details</a></p>
+            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Incident Details</a></p>
         </div>
     `;
 
@@ -133,11 +133,11 @@ export async function sendAppealConfirmationEmail(
     appealReason: string,
     attachments: string[]
 ) {
-    const subject = `Kalvium IRS | Appeal Submitted`;
+    const subject = `Your appeal for Incident ${incidentId} has been successfully submitted and is under review`;
 
     const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <p>Your appeal for Case ${incidentId} has been successfully submitted and is under review. We will notify you once a final decision is reached</p>
+            <p>Your appeal for Incident ${incidentId} has been successfully submitted and is under review. We will notify you once a final decision is reached</p>
             
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p><strong>Appeal Description:</strong></p>
@@ -164,14 +164,14 @@ export async function sendAppealNotificationEmail(
     appealReason: string,
     attachments: string[] = []
 ) {
-    const subject = `Kalvium IRS | New Appeal Submitted`;
+    const subject = `New Appeal Submitted for Incident ${incidentId}`;
     const link = `${APP_URL}/investigation-hub/${incidentId}`;
 
     // We send individual emails or bcc? Map over recipients is safer/easier.
     for (const email of to) {
         const html = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <p>An appeal has been submitted for Case ${incidentId}.</p>
+                <p>An appeal has been submitted for Incident ${incidentId}.</p>
                 
                 <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
                     <p><strong>Reported By:</strong> ${reportedBy}</p>

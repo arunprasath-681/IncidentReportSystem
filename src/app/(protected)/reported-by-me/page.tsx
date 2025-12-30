@@ -236,7 +236,7 @@ export default function ReportedByMePage() {
 
     async function handleSubmit() {
         if (!dateTimeOfIncident) { setError("Please select the date and time of incident"); return; }
-        if (!description.trim()) { setError("Please provide a description of the incident"); return; }
+        if (description.trim().length < 40) { setError("Please provide a description of at least 40 characters"); return; }
         if (selectedUsers.length === 0) { setError("Please add at least one reported individual"); return; }
 
         setSaving(true);
