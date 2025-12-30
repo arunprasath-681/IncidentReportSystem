@@ -47,7 +47,7 @@ export default function Sidebar() {
     menuItems.push({
         href: "/my-cases",
         icon: ShieldAlert,
-        label: "My Cases (Reported Against Me)",
+        label: "Reported Against Me",
     });
 
     // Investigation Hub - investigator, campus manager, approver, admin

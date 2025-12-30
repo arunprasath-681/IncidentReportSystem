@@ -59,10 +59,7 @@ export async function sendCaseReportedEmail(
                 <p>${description}</p>
                 
                 ${attachments.length > 0 ? `
-                    <p><strong>Attachments:</strong></p>
-                    <ul>
-                        ${attachments.map((url, i) => `<li><a href="${url}">Attachment ${i + 1}</a></li>`).join('')}
-                    </ul>
+                    <p><strong>Attachments:</strong> ${attachments.map((url, i) => `<a href="${url}">Attachment ${i + 1}</a>`).join(', ')}</p>
                 ` : ''}
             </div>
 
