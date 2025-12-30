@@ -1,7 +1,6 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { Shield } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -28,24 +27,11 @@ function LoginContent() {
                     textAlign: "center",
                 }}
             >
-                <div style={{ marginBottom: "1.5rem" }}>
-                    <div
-                        style={{
-                            width: "64px",
-                            height: "64px",
-                            borderRadius: "50%",
-                            backgroundColor: "var(--primary)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            margin: "0 auto 1rem",
-                        }}
-                    >
-                        <Shield size={32} color="white" />
+                <div style={{ marginBottom: "0.5rem" }}>
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: "1rem" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/LOGO_IRS.svg" alt="Kalvium IRS" style={{ width: "80px", height: "48px" }} />
                     </div>
-                    <h1 style={{ fontSize: "1.5rem", fontWeight: "600", marginBottom: "0.5rem" }}>
-                        Kalvium IRS
-                    </h1>
                     <p style={{ color: "var(--muted-foreground)" }}>
                         Incident Report System
                     </p>
@@ -112,7 +98,6 @@ function LoginContent() {
                         color: "var(--muted-foreground)",
                     }}
                 >
-                    By signing in, you agree to our terms of service and privacy policy.
                 </p>
             </div>
         </div>

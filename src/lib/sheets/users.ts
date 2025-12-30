@@ -89,6 +89,12 @@ export async function getUserRoleWithToken(
             });
 
             if (otherUser) {
+                const status = getCaseInsensitive(otherUser, "status");
+                if (status?.trim().toLowerCase() === "inactive") {
+                    console.log(`User ${email} is inactive.`);
+                    return { role: "not_authorized", isAuthorized: false };
+                }
+
                 const roleVal = getCaseInsensitive(otherUser, "role");
                 const roleLower = roleVal?.trim().toLowerCase() || "";
                 if (["admin", "approver", "investigator"].includes(roleLower)) {
@@ -112,20 +118,21 @@ export async function getUserRoleWithToken(
         const staffRows = staffResponse.data.values;
         if (staffRows && staffRows.length > 1) {
             const headers = staffRows[0] as string[];
-            console.log("Staff Headers:", headers); // DEBUG
             const staff = parseRows<Staff>(headers, staffRows.slice(1) as string[][]);
             const staffMember = staff.find((s) => {
                 const sEmail = getCaseInsensitive(s, "email");
                 return sEmail?.trim().toLowerCase() === email.trim().toLowerCase();
             });
 
-            console.log("Checking email:", email); // DEBUG
-            console.log("Found staff member:", staffMember ? "YES" : "NO"); // DEBUG
-
             if (staffMember) {
+                const status = getCaseInsensitive(staffMember, "status");
+                if (status?.trim().toLowerCase() === "inactive") {
+                    console.log(`Staff ${email} is inactive.`);
+                    return { role: "not_authorized", isAuthorized: false };
+                }
+
                 const roleVal = getCaseInsensitive(staffMember, "role");
                 const roleLower = roleVal?.trim().toLowerCase() || "";
-                console.log("Role found:", roleVal, "Lower:", roleLower); // DEBUG
 
                 // Only Campus Manager gets access
                 if (roleLower === "campus manager" || roleLower === "campus_manager") {
@@ -157,6 +164,12 @@ export async function getUserRoleWithToken(
             });
 
             if (student) {
+                const status = getCaseInsensitive(student, "status");
+                if (status?.trim().toLowerCase() === "inactive") {
+                    console.log(`Student ${email} is inactive.`);
+                    return { role: "not_authorized", isAuthorized: false };
+                }
+
                 return {
                     role: "student",
                     campusCode: getCaseInsensitive(student, "campus_code") || student.campus_code,

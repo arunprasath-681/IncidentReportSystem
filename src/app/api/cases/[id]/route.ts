@@ -15,7 +15,8 @@ import { getUserByEmail, getAllAuthorizedUsers } from "@/lib/sheets/users";
 import {
     sendStatusUpdateEmail,
     sendAppealConfirmationEmail,
-    sendAppealNotificationEmail
+    sendAppealNotificationEmail,
+    sendReinvestigationNotificationEmail
 } from "@/lib/email";
 import { z } from "zod";
 
@@ -137,6 +138,7 @@ export async function PATCH(
                     await sendStatusUpdateEmail(
                         updatedCase.reported_individual_id,
                         updatedCase.incident_id,
+                        updatedCase.case_id,
                         updatedCase.case_status,
                         {
                             description: incident?.description || "",
@@ -144,9 +146,9 @@ export async function PATCH(
                             category: updatedCase.category_of_offence,
                             subCategory: updatedCase.sub_category_of_offence,
                             level: updatedCase.level_of_offence,
-                            verdict: updatedCase.verdict,
-                            complainantEmail: incident?.complainant_id
-                        }
+                            verdict: updatedCase.verdict
+                        },
+                        data.attachments || []
                     );
                 }
                 break;
@@ -171,6 +173,7 @@ export async function PATCH(
                     await sendAppealConfirmationEmail(
                         session.user.email,
                         updatedCase.incident_id,
+                        updatedCase.case_id,
                         data.appealReason,
                         data.appealAttachments || []
                     );
@@ -186,6 +189,7 @@ export async function PATCH(
                             recipients,
                             updatedCase.incident_id,
                             session.user.email,
+                            updatedCase.case_id,
                             data.appealReason,
                             data.appealAttachments || []
                         );
@@ -226,6 +230,7 @@ export async function PATCH(
                     await sendStatusUpdateEmail(
                         updatedCase.reported_individual_id,
                         updatedCase.incident_id,
+                        updatedCase.case_id,
                         updatedCase.case_status,
                         {
                             description: incident?.description || "",
@@ -233,8 +238,7 @@ export async function PATCH(
                             category: updatedCase.category_of_offence,
                             subCategory: updatedCase.sub_category_of_offence,
                             level: updatedCase.level_of_offence,
-                            verdict: updatedCase.verdict,
-                            complainantEmail: incident?.complainant_id
+                            verdict: updatedCase.verdict
                         }
                     );
                 }
@@ -245,12 +249,27 @@ export async function PATCH(
                 if (!["approver", "admin"].includes(role)) {
                     return NextResponse.json({ error: "Forbidden - not an approver" }, { status: 403 });
                 }
+
+                // 1. Get current case data to find who worked on it
+                const currentCase = await getCaseById(session.accessToken, id);
+
                 updatedCase = await updateCase(
                     session.accessToken,
                     id,
                     { case_status: "Pending Investigation" },
                     session.user.email
                 );
+
+                // 2. Alert the modification to the investigator
+                if (currentCase && currentCase.last_updated_by && currentCase.incident_id) {
+                    // Assuming last_updated_by was the investigator who submitted it
+                    await sendReinvestigationNotificationEmail(
+                        currentCase.last_updated_by,
+                        currentCase.incident_id,
+                        currentCase.case_id,
+                        session.user.email
+                    );
+                }
                 break;
             }
 

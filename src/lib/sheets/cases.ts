@@ -31,6 +31,7 @@ export interface Case {
     punishment: string;
     case_status: CaseStatus;
     appeal_reason: string;
+    appeal_submitted_at?: string;
     appeal_attachments: string; // JSON array
     investigator_attachments: string; // JSON array
     approver_attachments: string; // JSON array
@@ -46,6 +47,7 @@ export interface CreateCaseInput {
     squad: string;
     campus: string;
     createdBy: string;
+    attachments?: string[];
 }
 
 import { SUB_CATEGORIES } from "../constants";
@@ -105,9 +107,12 @@ export async function createCase(
     // Get actual headers from the sheet
     const headers = await getSheetHeaders(sheets, "Cases");
 
+    // Generate Sequential ID
+    const newId = await generateNextCaseId(sheets, spreadsheetId, input.incidentId);
+
     const now = formatDateForStorage();
     const newCase: Case = {
-        case_id: `CASE-${uuidv4()}`,
+        case_id: newId,
         incident_id: input.incidentId,
         reported_individual_id: input.reportedIndividualEmail,
         squad: input.squad,
@@ -116,7 +121,7 @@ export async function createCase(
         sub_category_of_offence: "",
         level_of_offence: "",
         case_comments: "",
-        attachments: "[]",
+        attachments: JSON.stringify(input.attachments || []),
         investigator_attachments: "[]",
         approver_attachments: "[]",
         verdict: "",
@@ -151,6 +156,53 @@ export async function createCase(
     });
 
     return newCase;
+}
+
+async function generateNextCaseId(sheets: sheets_v4.Sheets, spreadsheetId: string, incidentId: string): Promise<string> {
+    // 1. Determine Incident Suffix
+    // Format: INCYYYYABCD -> YYYYABCD
+    // If not matching, fallback to last 8 chars (legacy support)
+    let incidentSuffix = "";
+    if (incidentId.startsWith("INC") && incidentId.length === 11 && !isNaN(parseInt(incidentId.substring(3)))) {
+        // Standard new format: INC + 4 digit year + 4 digit id = 11 chars.
+        // Wait, INC20250001 is 3+4+4 = 11? 
+        // "INC" (3) + "2025" (4) + "0001" (4) = 11. Yes.
+        incidentSuffix = incidentId.substring(3);
+    } else {
+        // Fallback for UUIDs or other formats: use last 8 chars to try and be consistent?
+        // Or just append Case sequence to the full ID if it's not too long?
+        // Request says: CASE-<last 8digist of incident id>-abc
+        // If UUID: INC-1234-.... 
+        // Let's take last 8 chars of whatever string it is.
+        incidentSuffix = incidentId.slice(-8);
+    }
+
+    const prefix = `CASE-${incidentSuffix}-`;
+
+    // 2. Fetch existing cases to find max sequence for THIS incident prefix
+    // Only need Case ID column (Col A usually)
+    const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "Cases!A:A", // Assuming Case ID is in Col A
+    });
+
+    const rows = response.data.values || [];
+    const ids = rows.slice(1).map(r => r[0] as string).filter(id => id && id.startsWith(prefix));
+
+    let maxSeq = 0;
+    for (const id of ids) {
+        const seqPart = id.substring(prefix.length); // "001"
+        const seq = parseInt(seqPart, 10);
+        if (!isNaN(seq) && seq > maxSeq) {
+            maxSeq = seq;
+        }
+    }
+
+    const nextSeq = maxSeq + 1;
+    return `${prefix}${nextSeq.toString().padStart(3, "0")}`; // CASE-20250001-001
+
+
+
 }
 
 // Get cases by incident
@@ -411,6 +463,7 @@ export async function submitAppeal(
         {
             appeal_reason: data.appealReason,
             appeal_attachments: JSON.stringify(data.appealAttachments || []),
+            appeal_submitted_at: formatDateForStorage(),
             case_status: "Appealed",
         },
         submittedBy

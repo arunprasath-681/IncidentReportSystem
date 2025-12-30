@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getIncidentById, updateIncident } from "@/lib/sheets/incidents";
-import { getCasesByIncident, areAllCasesFinalized } from "@/lib/sheets/cases";
+import { getCasesByIncident, areAllCasesFinalized, updateCase } from "@/lib/sheets/cases";
 
 export async function GET(
     request: NextRequest,
@@ -101,6 +101,19 @@ export async function PATCH(
 
         if (!updatedIncident) {
             return NextResponse.json({ error: "Incident not found" }, { status: 404 });
+        }
+
+        // Sync attachments to associated cases if they were updated
+        if (body.attachments) {
+            const cases = await getCasesByIncident(session.accessToken, id);
+            for (const c of cases) {
+                await updateCase(
+                    session.accessToken,
+                    c.case_id,
+                    { attachments: body.attachments },
+                    session.user.email
+                );
+            }
         }
 
         return NextResponse.json({ incident: updatedIncident });

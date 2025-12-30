@@ -26,6 +26,7 @@ interface Case {
     last_updated_at: string;
     appeal_reason?: string;
     appeal_submitted_at?: string;
+    appeal_attachments?: string; // JSON string
 }
 
 interface UploadedFile {
@@ -387,6 +388,16 @@ export default function MyCasesView() {
                                             {incidents[selectedCase.incident_id]?.reported_on ? formatDate(incidents[selectedCase.incident_id].reported_on, "MMM d, yyyy h:mm a") : "-"}
                                         </p>
                                         <div style={{ backgroundColor: "var(--muted)", padding: "1rem", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+                                            {/* ID Display */}
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid var(--border)", fontSize: "0.75rem", color: "var(--muted-foreground)" }}>
+                                                <div>
+                                                    <span style={{ fontWeight: "600" }}>Incident ID:</span> {selectedCase.incident_id}
+                                                </div>
+                                                <div>
+                                                    <span style={{ fontWeight: "600" }}>Case ID:</span> {selectedCase.case_id}
+                                                </div>
+                                            </div>
+
                                             <p style={{ fontSize: "0.875rem", whiteSpace: "pre-wrap" }}>{incidents[selectedCase.incident_id]?.description}</p>
                                             <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--muted-foreground)" }}>
                                                 Incident Date: {incidents[selectedCase.incident_id]?.date_time_of_incident ? formatDate(incidents[selectedCase.incident_id].date_time_of_incident, "MMM d, yyyy h:mm a") : "-"}
@@ -525,9 +536,48 @@ export default function MyCasesView() {
                                             ) : selectedCase.appeal_reason ? (
                                                 <div style={{ marginTop: "0.5rem", backgroundColor: "var(--muted)", padding: "1rem", borderRadius: "var(--radius)" }}>
                                                     <p style={{ fontSize: "0.875rem", fontStyle: "italic" }}>"{selectedCase.appeal_reason}"</p>
-                                                    {/* Attachments if any could go here if we saved them in a way we can read back easily. For now just text. */}
+                                                    {/* Attachments */}
+                                                    {selectedCase.appeal_attachments && (() => {
+                                                        try {
+                                                            const attachments = JSON.parse(selectedCase.appeal_attachments) as string[];
+                                                            if (attachments.length > 0) {
+                                                                return (
+                                                                    <div style={{ marginTop: "1rem", borderTop: "1px solid rgba(0,0,0,0.1)", paddingTop: "0.75rem" }}>
+                                                                        <p style={{ fontSize: "0.75rem", fontWeight: "600", marginBottom: "0.5rem", color: "var(--muted-foreground)" }}>APPEAL ATTACHMENTS</p>
+                                                                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                                                                            {attachments.map((url, i) => (
+                                                                                <a
+                                                                                    key={i}
+                                                                                    href={url}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    style={{
+                                                                                        fontSize: "0.75rem",
+                                                                                        display: "flex",
+                                                                                        alignItems: "center",
+                                                                                        gap: "0.375rem",
+                                                                                        padding: "0.375rem 0.625rem",
+                                                                                        backgroundColor: "var(--background)",
+                                                                                        border: "1px solid var(--border)",
+                                                                                        borderRadius: "var(--radius)",
+                                                                                        textDecoration: "none",
+                                                                                        color: "var(--foreground)"
+                                                                                    }}
+                                                                                >
+                                                                                    <FileText size={12} /> Attachment {i + 1}
+                                                                                </a>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        } catch (e) {
+                                                            return null;
+                                                        }
+                                                        return null;
+                                                    })()}
                                                     <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "var(--muted-foreground)" }}>
-                                                        Submitted on: {selectedCase.appeal_submitted_at ? formatDate(selectedCase.appeal_submitted_at, "MMM d, yyyy") : "Recently"}
+                                                        Submitted on: {selectedCase.appeal_submitted_at ? formatDate(selectedCase.appeal_submitted_at, "MMM d, yyyy h:mm a") : "Recently"}
                                                     </div>
                                                 </div>
                                             ) : (

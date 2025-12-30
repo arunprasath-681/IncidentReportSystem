@@ -113,16 +113,19 @@ export async function POST(request: NextRequest) {
         // Create cases for each reported individual
         for (const email of data.reportedIndividuals) {
             const user = await getUserByEmail(session.accessToken, email);
-            await createCase(session.accessToken, {
+            const newCase = await createCase(session.accessToken, {
                 incidentId: incident.incident_id,
                 reportedIndividualEmail: email,
                 squad: user?.squadNumber || "",
                 campus: user?.campusCode || "",
                 createdBy: session.user.email,
+                attachments: data.attachments,
             });
 
             // Send notification
-            await sendCaseReportedEmail(email, incident.incident_id, data.description, data.dateTimeOfIncident, data.attachments);
+            if (newCase) {
+                await sendCaseReportedEmail(email, incident.incident_id, data.description, data.dateTimeOfIncident, newCase.case_id, data.attachments);
+            }
         }
 
         return NextResponse.json({ incident }, { status: 201 });

@@ -25,6 +25,7 @@ interface Case {
     case_comments: string;
     review_comments: string;
     appeal_reason: string;
+    appeal_attachments?: string;
     investigator_attachments?: string;
     approver_attachments?: string;
 }
@@ -664,6 +665,31 @@ export default function DecisionHubView() {
                                         <div style={{ padding: "1rem", backgroundColor: "rgba(245, 158, 11, 0.1)", borderRadius: "var(--radius)", marginBottom: "1.5rem" }}>
                                             <span style={{ fontSize: "0.75rem", color: "var(--warning)", fontWeight: "600" }}>Appeal Reason</span>
                                             <p style={{ marginTop: "0.5rem", whiteSpace: "pre-wrap" }}>{selectedCase.appeal_reason}</p>
+
+                                            {parseAttachments(selectedCase.appeal_attachments).length > 0 && (
+                                                <div style={{ marginTop: "1rem", borderTop: "1px solid rgba(245, 158, 11, 0.2)", paddingTop: "1rem" }}>
+                                                    <span style={{ fontSize: "0.75rem", color: "var(--warning)", fontWeight: "600", display: "block", marginBottom: "0.5rem" }}>Appeal Attachments</span>
+                                                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                                                        {parseAttachments(selectedCase.appeal_attachments).map((url, i) => (
+                                                            <a
+                                                                key={i}
+                                                                href={url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                style={{
+                                                                    display: "flex", alignItems: "center", gap: "0.25rem",
+                                                                    padding: "0.375rem 0.5rem", backgroundColor: "var(--primary)",
+                                                                    borderRadius: "var(--radius)", fontSize: "0.80rem", textDecoration: "none",
+                                                                    color: "var(--primary-foreground)"
+                                                                }}
+                                                            >
+                                                                <FileText size={14} />
+                                                                Attachment {i + 1}
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -920,7 +946,8 @@ export default function DecisionHubView() {
                                     <td>
                                         <button
                                             onClick={() => openModal(c, getModalModeForCase(c), "incident")}
-                                            className="text-primary hover:underline font-medium"
+                                            className="hover:underline font-medium"
+                                            style={{ color: "var(--primary)", cursor: "pointer", background: "none", border: "none", padding: 0 }}
                                         >
                                             {c.incident_id}
                                         </button>

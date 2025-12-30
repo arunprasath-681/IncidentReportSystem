@@ -69,9 +69,12 @@ export async function createIncident(
     // Get actual headers from the sheet
     const headers = await getSheetHeaders(sheets, "IncidentReports");
 
+    // Generate Sequential ID
+    const newId = await generateNextIncidentId(sheets, spreadsheetId);
+
     const now = formatDateForStorage();
     const incident: Incident = {
-        incident_id: `INC-${uuidv4()}`,
+        incident_id: newId,
         complainant_id: input.complainantEmail,
         complainant_category: input.complainantCategory,
         date_time_of_incident: input.dateTimeOfIncident,
@@ -106,6 +109,35 @@ export async function createIncident(
     });
 
     return incident;
+}
+
+async function generateNextIncidentId(sheets: sheets_v4.Sheets, spreadsheetId: string): Promise<string> {
+    const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: "IncidentReports!A:A", // Assuming Incident ID is in Column A. If heavily customized, might need to find column.
+    });
+
+    const rows = response.data.values || [];
+    // Skip header
+    const ids = rows.slice(1).map(r => r[0] as string).filter(id => id && id.startsWith("INC"));
+
+    const currentYear = new Date().getFullYear();
+    const prefix = `INC${currentYear}`;
+
+    let maxSeq = 0;
+
+    for (const id of ids) {
+        if (id.startsWith(prefix)) {
+            const seqPart = id.substring(prefix.length); // e.g. "0001"
+            const seq = parseInt(seqPart, 10);
+            if (!isNaN(seq) && seq > maxSeq) {
+                maxSeq = seq;
+            }
+        }
+    }
+
+    const nextSeq = maxSeq + 1;
+    return `${prefix}${nextSeq.toString().padStart(4, "0")}`; // INC20250001
 }
 
 // Helper to normalize keys to lowercase to ensure matching interface
@@ -204,6 +236,13 @@ export async function getIncidents(
     // Actually, I'll update the comment and defer implementation until I check `cases.ts`.
 
     // TEMPORARY: Just keeping existing filters. I will update this block properly after verifying strategy.
+    // Sort by last_updated_at descending (latest first)
+    incidents.sort((a, b) => {
+        const dateA = parseDateFromStorage(a.last_updated_at).getTime();
+        const dateB = parseDateFromStorage(b.last_updated_at).getTime();
+        return dateB - dateA;
+    });
+
     return incidents;
 }
 

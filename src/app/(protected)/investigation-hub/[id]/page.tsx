@@ -14,6 +14,7 @@ interface Incident {
     reported_on: string;
     description: string;
     status: "Open" | "Closed";
+    attachments: string;
     metadata_changelog: string;
 }
 
@@ -642,6 +643,51 @@ export default function InvestigationIncidentPage({
                     <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)" }}>
                         <h3 style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.75rem" }}>Description</h3>
                         <p style={{ whiteSpace: "pre-wrap", color: "var(--muted-foreground)" }}>{incident.description}</p>
+                    </div>
+
+                    <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)" }}>
+                        <h3 style={{ fontSize: "0.875rem", fontWeight: "600", marginBottom: "0.75rem" }}>Attachments</h3>
+                        {(() => {
+                            try {
+                                const attachments = JSON.parse(incident.attachments || "[]");
+                                if (!Array.isArray(attachments) || attachments.length === 0) {
+                                    return <p style={{ color: "var(--muted-foreground)", fontSize: "0.875rem" }}>No attachments found</p>;
+                                }
+                                return (
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                                        {attachments.map((url: string, i: number) => {
+                                            const isImage = url.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+                                            const fileName = `Attachment ${i + 1}`;
+                                            return (
+                                                <a
+                                                    key={i}
+                                                    href={url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: "0.5rem",
+                                                        padding: "0.5rem 0.75rem",
+                                                        backgroundColor: "var(--muted)",
+                                                        borderRadius: "var(--radius)",
+                                                        textDecoration: "none",
+                                                        color: "var(--foreground)",
+                                                        fontSize: "0.875rem",
+                                                        border: "1px solid var(--border)"
+                                                    }}
+                                                >
+                                                    {isImage ? <Eye size={14} /> : <FileText size={14} />}
+                                                    {fileName}
+                                                </a>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            } catch (e) {
+                                return <p style={{ color: "var(--destructive)", fontSize: "0.875rem" }}>Error loading attachments</p>;
+                            }
+                        })()}
                     </div>
                 </div>
             )}

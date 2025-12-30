@@ -41,18 +41,19 @@ export async function sendCaseReportedEmail(
     incidentId: string,
     description: string,
     dateTime: string,
+    caseId: string,
     attachments: string[] = []
 ) {
-    const subject = `New Incident Reported`;
+    const subject = `New Case Reported | ${caseId}`;
     const link = `${APP_URL}/my-cases`;
 
     const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
 
-            <p>A new incident has been reported where you are listed as the reported individual.</p>
+            <p>A new case has been reported where you are listed as the reported individual.</p>
             
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p><strong>Incident ID:</strong> ${incidentId}</p>
+                <p><strong>Case ID:</strong> ${incidentId}</p>
                 <p><strong>Date & Time:</strong> ${dateTime}</p>
                 <p><strong>Description:</strong></p>
                 <p>${description}</p>
@@ -65,8 +66,8 @@ export async function sendCaseReportedEmail(
                 ` : ''}
             </div>
 
-            <p>You can view the details of this incident by logging into the portal.</p>
-            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Incident</a></p>
+            <p>You can view the details of this case by logging into the portal.</p>
+            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Case</a></p>
         </div>
     `;
 
@@ -76,6 +77,7 @@ export async function sendCaseReportedEmail(
 export async function sendStatusUpdateEmail(
     to: string,
     incidentId: string,
+    caseId: string,
     status: string,
     details: {
         description: string;
@@ -84,22 +86,22 @@ export async function sendStatusUpdateEmail(
         subCategory?: string;
         level?: string;
         verdict?: string;
-        complainantEmail?: string;
-    }
+    },
+    attachments: string[] = []
 ) {
-    const subject = `The status of your incident has changed | ${status}`;
+    const subject = `The status of your case has changed | ${caseId} | ${status}`;
     const link = `${APP_URL}/my-cases`;
 
     // Logic for displaying specific details based on status
     let statusMessage = "";
     if (status === "Verdict Given") {
-        statusMessage = "A verdict has been recorded for your incident. If you have been found Guilty, you may be eligible to appeal within 7 days.";
+        statusMessage = "A verdict has been recorded for your case. If you have been found Guilty, you may be eligible to appeal within 7 days.";
     } else if (status === "Final Decision") {
-        statusMessage = "A final decision has been reached for your incident. This decision is final and cannot be appealed further.";
+        statusMessage = "A final decision has been reached for your case. This decision is final and cannot be appealed further.";
     } else if (status === "Appealed") {
         statusMessage = "Your appeal has been submitted and is currently under review.";
     } else {
-        statusMessage = `The status of your incident has changed to: ${status}`;
+        statusMessage = `The status of your case has changed to: ${status}`;
     }
 
     const html = `
@@ -107,7 +109,7 @@ export async function sendStatusUpdateEmail(
             <p>${statusMessage}</p>
             
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p><strong>Incident ID:</strong> ${incidentId}</p>
+                <p><strong>Case ID:</strong> ${incidentId}</p>
                 <p><strong>Status:</strong> ${status}</p>
                 ${details.verdict ? `<p><strong>Verdict:</strong> <span style="font-weight:bold; color: ${details.verdict === 'Guilty' ? 'red' : 'green'}">${details.verdict}</span></p>` : ''}
                 ${details.level ? `<p><strong>Level of Offence:</strong> ${details.level}</p>` : ''}
@@ -116,11 +118,16 @@ export async function sendStatusUpdateEmail(
                 
                 <p><strong>Description:</strong> ${details.description}</p>
                 <p><strong>Date & Time:</strong> ${details.dateTime}</p>
-                ${details.category ? `<p><strong>Category:</strong> ${details.category}</p>` : ''}
-                ${details.complainantEmail ? `<p><strong>Complainant:</strong> ${details.complainantEmail}</p>` : ''}
+                ${details.category ? `<p><strong>Category:</strong> ${details.category}</p>` : ''}                
+                ${attachments.length > 0 ? `
+                    <p><strong>Attachments (Verdict/Decision Documents):</strong></p>
+                    <ul>
+                        ${attachments.map((url, i) => `<li><a href="${url}">Document ${i + 1}</a></li>`).join('')}
+                    </ul>
+                ` : ''}
             </div>
 
-            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Incident Details</a></p>
+            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">View Case Details</a></p>
         </div>
     `;
 
@@ -130,14 +137,15 @@ export async function sendStatusUpdateEmail(
 export async function sendAppealConfirmationEmail(
     to: string,
     incidentId: string,
+    caseId: string,
     appealReason: string,
     attachments: string[]
 ) {
-    const subject = `Your appeal for Incident ${incidentId} has been successfully submitted and is under review`;
+    const subject = `Your appeal for Case ${caseId} has been successfully submitted and is under review`;
 
     const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <p>Your appeal for Incident ${incidentId} has been successfully submitted and is under review. We will notify you once a final decision is reached</p>
+            <p>Your appeal for Case ${caseId} has been successfully submitted and is under review. We will notify you once a final decision is reached</p>
             
             <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p><strong>Appeal Description:</strong></p>
@@ -161,17 +169,18 @@ export async function sendAppealNotificationEmail(
     to: string[], // List of approvers/investigators
     incidentId: string,
     reportedBy: string,
+    caseId: string,
     appealReason: string,
     attachments: string[] = []
 ) {
-    const subject = `New Appeal Submitted for Incident ${incidentId}`;
+    const subject = `New Appeal Submitted for Case ${caseId}`;
     const link = `${APP_URL}/investigation-hub/${incidentId}`;
 
     // We send individual emails or bcc? Map over recipients is safer/easier.
     for (const email of to) {
         const html = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <p>An appeal has been submitted for Incident ${incidentId}.</p>
+                <p>An appeal has been submitted for Case ${caseId}.</p>
                 
                 <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
                     <p><strong>Reported By:</strong> ${reportedBy}</p>
@@ -191,4 +200,29 @@ export async function sendAppealNotificationEmail(
         `;
         await sendEmail(email, subject, html);
     }
+}
+
+export async function sendReinvestigationNotificationEmail(
+    to: string,
+    incidentId: string,
+    caseId: string,
+    approverEmail: string
+) {
+    const subject = `Case Returned for Reinvestigation | ${caseId}`;
+    const link = `${APP_URL}/investigation-hub/${incidentId}`;
+
+    const html = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+            <p>The case <strong>${caseId}</strong> (Incident: ${incidentId}) has been returned for further investigation by the approver.</p>
+            
+            <div style="background-color: #f4f4f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p><strong>Returned By:</strong> ${approverEmail}</p>
+                <p>Please review the case comments and update the investigation accordingly.</p>
+            </div>
+
+            <p><a href="${link}" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">Go to Investigation Hub</a></p>
+        </div>
+    `;
+
+    await sendEmail(to, subject, html);
 }
