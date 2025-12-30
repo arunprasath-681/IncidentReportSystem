@@ -933,10 +933,12 @@ export default function DecisionHubView() {
                             </tr>
                         ) : displayedCases.length === 0 ? (
                             <tr>
-                                <td colSpan={activeTab !== "pending" ? 7 : 6} style={{ textAlign: "center", padding: "2rem" }}>
-                                    <Scale size={32} style={{ color: "var(--muted-foreground)", marginBottom: "0.5rem" }} />
-                                    <p style={{ fontWeight: "500" }}>No cases in this category</p>
-                                    <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>Cases will appear here when they reach this stage.</p>
+                                <td colSpan={activeTab !== "pending" ? 7 : 6} style={{ padding: "2rem" }}>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                                        <Scale size={32} style={{ color: "var(--muted-foreground)", marginBottom: "0.5rem" }} />
+                                        <p style={{ fontWeight: "500" }}>No cases in this category</p>
+                                        <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>Cases will appear here when they reach this stage.</p>
+                                    </div>
                                 </td>
                             </tr>
                         ) : (

@@ -98,14 +98,17 @@ export default function InvestigationHubView() {
                             </tr>
                         ) : filteredIncidents.length === 0 ? (
                             <tr>
-                                <td colSpan={6} style={{ textAlign: "center", padding: "2rem" }}>
-                                    <Search size={32} style={{ color: "var(--muted-foreground)", marginBottom: "0.5rem" }} />
-                                    <p style={{ fontWeight: "500" }}>No incidents found</p>
-                                    <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>
-                                        {searchQuery ? "Try adjusting your search query." : "No incidents match your filters."}
-                                    </p>
+                                <td colSpan={6} style={{ padding: "2rem" }}>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                                        <Search size={32} style={{ color: "var(--muted-foreground)", marginBottom: "0.5rem" }} />
+                                        <p style={{ fontWeight: "500" }}>No incidents found</p>
+                                        <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>
+                                            {searchQuery ? "Try adjusting your search query." : "No incidents match your filters."}
+                                        </p>
+                                    </div>
                                 </td>
                             </tr>
+
                         ) : (
                             filteredIncidents.map((incident) => (
                                 <tr key={incident.incident_id}>

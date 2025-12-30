@@ -139,10 +139,12 @@ export default function ArchivesPage() {
                             <tr><td colSpan={6} style={{ textAlign: "center", padding: "2rem" }}><div className="spinner" style={{ margin: "0 auto" }}></div></td></tr>
                         ) : filteredIncidents.length === 0 ? (
                             <tr>
-                                <td colSpan={6} style={{ textAlign: "center", padding: "2rem" }}>
-                                    <Archive size={32} style={{ color: "var(--muted-foreground)", marginBottom: "0.5rem" }} />
-                                    <p style={{ fontWeight: "500" }}>No archived incidents</p>
-                                    <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>{searchQuery ? "No incidents match your search." : "Closed incidents will appear here."}</p>
+                                <td colSpan={6} style={{ padding: "2rem" }}>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                                        <Archive size={32} style={{ color: "var(--muted-foreground)", marginBottom: "0.5rem" }} />
+                                        <p style={{ fontWeight: "500" }}>No archived incidents</p>
+                                        <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>{searchQuery ? "No incidents match your search." : "Closed incidents will appear here."}</p>
+                                    </div>
                                 </td>
                             </tr>
                         ) : (

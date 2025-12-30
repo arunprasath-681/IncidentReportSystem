@@ -499,7 +499,7 @@ export default function ReportedByMePage() {
                         {loading ? (
                             <tr><td colSpan={5} style={{ textAlign: "center", padding: "2rem" }}><div className="spinner" style={{ margin: "0 auto" }}></div></td></tr>
                         ) : filteredIncidents.length === 0 ? (
-                            <tr><td colSpan={5} style={{ textAlign: "center", padding: "2rem" }}><FileText size={32} style={{ color: "var(--muted-foreground)", marginBottom: "0.5rem" }} /><p style={{ fontWeight: "500" }}>No reports found</p></td></tr>
+                            <tr><td colSpan={5} style={{ padding: "2rem" }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}><FileText size={32} style={{ color: "var(--muted-foreground)", marginBottom: "0.5rem" }} /><p style={{ fontWeight: "500" }}>No reports found</p></div></td></tr>
                         ) : (
                             filteredIncidents.map((incident) => (
                                 <tr key={incident.incident_id}>
