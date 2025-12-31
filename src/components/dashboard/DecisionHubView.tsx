@@ -58,7 +58,7 @@ export default function DecisionHubView() {
     const [isEditingInvestigation, setIsEditingInvestigation] = useState(false);
     const [editForm, setEditForm] = useState({
         category: "",
-        subCategory: "", // Not shown in UI usually but needed for API often if schema requires it, but schema was partial? No, schema was not verified. API uses partial if I coded it that way? Checked API code: it uses body.data.categoryOfOffence etc. I should make sure to send subCategory if needed.
+        subCategory: "",
         level: "",
         comments: ""
     });
@@ -72,6 +72,8 @@ export default function DecisionHubView() {
     const [reviewComments, setReviewComments] = useState("");
     const [finalVerdict, setFinalVerdict] = useState<"Uphold Original" | "Overturn to Not Guilty" | "Modify Level" | "">("");
     const [newLevel, setNewLevel] = useState("");
+    const [newCategory, setNewCategory] = useState("");
+    const [newSubCategory, setNewSubCategory] = useState("");
 
     // File Upload State
     const [uploadedFiles, setUploadedFiles] = useState<{ file?: File; preview: string; name: string; url?: string; type: "image" | "pdf" | "doc" }[]>([]);
@@ -122,6 +124,8 @@ export default function DecisionHubView() {
         setReviewComments(caseData.review_comments || "");
         setFinalVerdict("");
         setNewLevel("");
+        setNewCategory(caseData.category_of_offence || "");
+        setNewSubCategory(caseData.sub_category_of_offence || "");
 
         // Load existing approver attachments
         const existingAttachments: string[] = [];
@@ -143,6 +147,15 @@ export default function DecisionHubView() {
         setIncidentData(null);
         fetchIncident(caseData.incident_id);
     }
+
+    // Prefill form when "Modify Level" is selected OR when recording a verdict
+    useEffect(() => {
+        if ((finalVerdict === "Modify Level" || modalMode === "verdict") && selectedCase) {
+            setNewCategory(selectedCase.category_of_offence || "");
+            setNewSubCategory(selectedCase.sub_category_of_offence || "");
+            setNewLevel(selectedCase.level_of_offence || "");
+        }
+    }, [finalVerdict, selectedCase, modalMode]);
 
     function closeModal() {
         setSelectedCase(null);
@@ -296,6 +309,11 @@ export default function DecisionHubView() {
             return;
         }
 
+        if (!newCategory || !newSubCategory || !newLevel) {
+            setError("All offense details (Category, Sub-category, Level) are mandatory.");
+            return;
+        }
+
         setSaving(true);
         setError("");
 
@@ -310,7 +328,10 @@ export default function DecisionHubView() {
                     data: {
                         verdict,
                         punishment: verdict === "Guilty" ? punishment : "",
-                        attachments // Sent to backend, which maps to approver_attachments
+                        attachments, // Sent to backend, which maps to approver_attachments
+                        newLevelOfOffence: newLevel,
+                        newCategoryOfOffence: newCategory,
+                        newSubCategoryOfOffence: newSubCategory,
                     },
                 }),
             });
@@ -354,9 +375,11 @@ export default function DecisionHubView() {
             setError("Please provide review comments and final verdict");
             return;
         }
-        if (finalVerdict === "Modify Level" && !newLevel) {
-            setError("Please specify the new level");
-            return;
+        if (finalVerdict === "Modify Level") {
+            if (!newCategory || !newSubCategory || !newLevel) {
+                setError("All fields (Category, Sub-category, Level) are mandatory for modification.");
+                return;
+            }
         }
 
         setSaving(true);
@@ -372,6 +395,8 @@ export default function DecisionHubView() {
                         reviewComments,
                         finalVerdict,
                         newLevelOfOffence: finalVerdict === "Modify Level" ? newLevel : undefined,
+                        newCategoryOfOffence: finalVerdict === "Modify Level" ? newCategory : undefined,
+                        newSubCategoryOfOffence: finalVerdict === "Modify Level" ? newSubCategory : undefined,
                         punishment: punishment || undefined,
                     },
                 }),
@@ -455,18 +480,18 @@ export default function DecisionHubView() {
                                 <Activity size={14} /> Investigation
                             </button>
                             <button
+                                className={`tab ${activeModalTab === "past_cases" ? "active" : ""}`}
+                                onClick={() => setActiveModalTab("past_cases")}
+                                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                            >
+                                <History size={14} /> Past Cases ({selectedCase ? cases.filter(c => c.reported_individual_id === selectedCase.reported_individual_id && c.case_id !== selectedCase.case_id).length : 0})
+                            </button>
+                            <button
                                 className={`tab ${activeModalTab === "resolution" ? "active" : ""}`}
                                 onClick={() => setActiveModalTab("resolution")}
                                 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
                             >
                                 <Gavel size={14} /> Verdict
-                            </button>
-                            <button
-                                className={`tab ${activeModalTab === "past_cases" ? "active" : ""}`}
-                                onClick={() => setActiveModalTab("past_cases")}
-                                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-                            >
-                                <History size={14} /> Past Cases
                             </button>
                         </div>
 
@@ -537,17 +562,7 @@ export default function DecisionHubView() {
                             {activeModalTab === "investigation" && (
                                 <div style={{ display: "grid", gap: "1rem" }}>
 
-                                    {!isEditingInvestigation && (
-                                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                                            <button
-                                                onClick={startEditingInvestigation}
-                                                className="btn btn-ghost"
-                                                style={{ fontSize: "0.875rem", display: "flex", alignItems: "center", gap: "0.25rem", color: "var(--primary)" }}
-                                            >
-                                                <Pencil size={14} /> Edit Investigation
-                                            </button>
-                                        </div>
-                                    )}
+                                    {/* Edit button removed as per requirements */}
 
                                     {isEditingInvestigation ? (
                                         <div className="space-y-4" style={{ padding: "1rem", backgroundColor: "var(--muted)", borderRadius: "var(--radius)" }}>
@@ -719,6 +734,46 @@ export default function DecisionHubView() {
                                                 </div>
                                             )}
 
+                                            {/* Offense Details (Editable) */}
+                                            <div style={{ display: "grid", gap: "0.75rem", padding: "1rem", backgroundColor: "var(--muted)", borderRadius: "var(--radius)", marginBottom: "1rem" }}>
+                                                <div className="form-group">
+                                                    <label className="label">Category <span style={{ color: "var(--destructive)" }}>*</span></label>
+                                                    <select
+                                                        className="input select"
+                                                        value={newCategory}
+                                                        onChange={(e) => { setNewCategory(e.target.value); setNewSubCategory(""); }}
+                                                    >
+                                                        <option value="">Select category...</option>
+                                                        {CATEGORIES.map(cat => (
+                                                            <option key={cat} value={cat}>{cat}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="form-group">
+                                                    <label className="label">Sub-category <span style={{ color: "var(--destructive)" }}>*</span></label>
+                                                    <select
+                                                        className="input select"
+                                                        value={newSubCategory}
+                                                        onChange={(e) => setNewSubCategory(e.target.value)}
+                                                        disabled={!newCategory}
+                                                    >
+                                                        <option value="">Select sub-category...</option>
+                                                        {(SUB_CATEGORIES[newCategory as keyof typeof SUB_CATEGORIES] || []).map(sub => (
+                                                            <option key={sub} value={sub}>{sub}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="form-group">
+                                                    <label className="label">Level of Offence <span style={{ color: "var(--destructive)" }}>*</span></label>
+                                                    <select className="input select" value={newLevel} onChange={(e) => setNewLevel(e.target.value)}>
+                                                        <option value="">Select level...</option>
+                                                        {DROPDOWN_LEVELS.map(lvl => (
+                                                            <option key={lvl} value={lvl}>Level {lvl}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+
                                             {/* File Upload UI */}
                                             <div className="form-group">
                                                 <label className="label">Attachments (Optional)</label>
@@ -805,20 +860,48 @@ export default function DecisionHubView() {
                                                     <option value="">Select final verdict...</option>
                                                     <option value="Uphold Original">Uphold Original Verdict</option>
                                                     <option value="Overturn to Not Guilty">Overturn to Not Guilty</option>
-                                                    <option value="Modify Level">Modify Level of Offence</option>
+                                                    <option value="Modify Level">Modify Offense Details</option>
                                                 </select>
                                             </div>
 
                                             {finalVerdict === "Modify Level" && (
-                                                <div className="form-group">
-                                                    <label className="label">New Level of Offence</label>
-                                                    <select className="input select" value={newLevel} onChange={(e) => setNewLevel(e.target.value)}>
-                                                        <option value="">Select level...</option>
-                                                        <option value="1">Level 1</option>
-                                                        <option value="2">Level 2</option>
-                                                        <option value="3">Level 3</option>
-                                                        <option value="4">Level 4</option>
-                                                    </select>
+                                                <div style={{ display: "grid", gap: "0.75rem", padding: "1rem", backgroundColor: "var(--muted)", borderRadius: "var(--radius)" }}>
+                                                    <div className="form-group">
+                                                        <label className="label">Category <span style={{ color: "var(--destructive)" }}>*</span></label>
+                                                        <select
+                                                            className="input select"
+                                                            value={newCategory}
+                                                            onChange={(e) => { setNewCategory(e.target.value); setNewSubCategory(""); }}
+                                                        >
+                                                            <option value="">Select category...</option>
+                                                            {CATEGORIES.map(cat => (
+                                                                <option key={cat} value={cat}>{cat}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div className="form-group">
+                                                        <label className="label">Sub-category <span style={{ color: "var(--destructive)" }}>*</span></label>
+                                                        <select
+                                                            className="input select"
+                                                            value={newSubCategory}
+                                                            onChange={(e) => setNewSubCategory(e.target.value)}
+                                                            disabled={!newCategory}
+                                                        >
+                                                            <option value="">Select sub-category...</option>
+                                                            {(SUB_CATEGORIES[newCategory as keyof typeof SUB_CATEGORIES] || []).map(sub => (
+                                                                <option key={sub} value={sub}>{sub}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div className="form-group">
+                                                        <label className="label">New Level of Offence <span style={{ color: "var(--destructive)" }}>*</span></label>
+                                                        <select className="input select" value={newLevel} onChange={(e) => setNewLevel(e.target.value)}>
+                                                            <option value="">Select level...</option>
+                                                            {DROPDOWN_LEVELS.map(lvl => (
+                                                                <option key={lvl} value={lvl}>Level {lvl}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             )}
 

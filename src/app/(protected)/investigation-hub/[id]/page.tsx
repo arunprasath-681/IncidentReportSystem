@@ -479,9 +479,6 @@ export default function InvestigationIncidentPage({
                                 <option value="">Select level...</option>
                                 {LEVELS.map((level) => <option key={level} value={level}>Level {level}</option>)}
                             </select>
-                            <p style={{ fontSize: "0.7rem", color: "var(--muted-foreground)", marginTop: "0.25rem" }}>
-                                Level 1-3: No appeal. Level 4: Appeal allowed for guilty verdicts.
-                            </p>
                         </div>
 
                         <div className="form-group">

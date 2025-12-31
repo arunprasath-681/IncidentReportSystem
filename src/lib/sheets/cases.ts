@@ -392,15 +392,28 @@ export async function recordVerdict(
         verdict: Verdict;
         punishment?: string;
         attachments?: string[];
+        newLevelOfOffence?: string;
+        newCategoryOfOffence?: string;
+        newSubCategoryOfOffence?: string;
     },
     recordedBy: string
 ): Promise<Case | null> {
     const currentCase = await getCaseById(accessToken, caseId);
     if (!currentCase) return null;
 
-    // Determine if this goes to Final Decision or Verdict Given
-    const levelNum = parseInt(currentCase.level_of_offence) || 0;
-    const category = currentCase.category_of_offence;
+    const updates: Partial<Case> = {
+        verdict: data.verdict,
+        punishment: data.punishment || "",
+        approver_attachments: JSON.stringify(data.attachments || []),
+    };
+
+    if (data.newLevelOfOffence) updates.level_of_offence = data.newLevelOfOffence;
+    if (data.newCategoryOfOffence) updates.category_of_offence = data.newCategoryOfOffence;
+    if (data.newSubCategoryOfOffence) updates.sub_category_of_offence = data.newSubCategoryOfOffence;
+
+    // Determine status based on POTENTIALLY NEW values
+    const levelNum = parseInt(updates.level_of_offence || currentCase.level_of_offence) || 0;
+    const category = updates.category_of_offence || currentCase.category_of_offence;
 
     let newStatus: CaseStatus = "Verdict Given";
 
@@ -410,20 +423,12 @@ export async function recordVerdict(
     } else if (category === "Breach of internship code of conduct" && levelNum <= 2) {
         newStatus = "Final Decision";
     } else if (data.verdict === "Not Guilty") {
-        newStatus = "Final Decision"; // Not Guilty = no appeal
+        newStatus = "Final Decision";
     }
 
-    return updateCase(
-        accessToken,
-        caseId,
-        {
-            verdict: data.verdict,
-            punishment: data.punishment || "",
-            approver_attachments: JSON.stringify(data.attachments || []),
-            case_status: newStatus,
-        },
-        recordedBy
-    );
+    updates.case_status = newStatus;
+
+    return updateCase(accessToken, caseId, updates, recordedBy);
 }
 
 // Submit appeal
@@ -476,6 +481,8 @@ export async function resolveAppeal(
         reviewComments: string;
         finalVerdict: "Uphold Original" | "Overturn to Not Guilty" | "Modify Level";
         newLevelOfOffence?: string;
+        newCategoryOfOffence?: string;
+        newSubCategoryOfOffence?: string;
         punishment?: string;
     },
     resolvedBy: string
@@ -488,8 +495,10 @@ export async function resolveAppeal(
     if (data.finalVerdict === "Overturn to Not Guilty") {
         updates.verdict = "Not Guilty";
         updates.punishment = "";
-    } else if (data.finalVerdict === "Modify Level" && data.newLevelOfOffence) {
-        updates.level_of_offence = data.newLevelOfOffence;
+    } else if (data.finalVerdict === "Modify Level") {
+        if (data.newLevelOfOffence) updates.level_of_offence = data.newLevelOfOffence;
+        if (data.newCategoryOfOffence) updates.category_of_offence = data.newCategoryOfOffence;
+        if (data.newSubCategoryOfOffence) updates.sub_category_of_offence = data.newSubCategoryOfOffence;
     }
 
     if (data.punishment) {

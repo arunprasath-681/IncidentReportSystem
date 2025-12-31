@@ -32,6 +32,9 @@ const verdictSchema = z.object({
     verdict: z.enum(["Guilty", "Not Guilty"]),
     punishment: z.string().optional(),
     attachments: z.array(z.string()).optional(),
+    newLevelOfOffence: z.string().optional(),
+    newCategoryOfOffence: z.string().optional(),
+    newSubCategoryOfOffence: z.string().optional(),
 });
 
 const appealSchema = z.object({
@@ -43,6 +46,8 @@ const resolveAppealSchema = z.object({
     reviewComments: z.string().min(1),
     finalVerdict: z.enum(["Uphold Original", "Overturn to Not Guilty", "Modify Level"]),
     newLevelOfOffence: z.string().optional(),
+    newCategoryOfOffence: z.string().optional(),
+    newSubCategoryOfOffence: z.string().optional(),
     punishment: z.string().optional(),
 });
 
@@ -121,7 +126,14 @@ export async function PATCH(
                 updatedCase = await recordVerdict(
                     session.accessToken,
                     id,
-                    data as { verdict: Verdict; punishment?: string; attachments?: string[] },
+                    data as {
+                        verdict: Verdict;
+                        punishment?: string;
+                        attachments?: string[];
+                        newLevelOfOffence?: string;
+                        newCategoryOfOffence?: string;
+                        newSubCategoryOfOffence?: string;
+                    },
                     session.user.email
                 );
 
@@ -210,6 +222,8 @@ export async function PATCH(
                         reviewComments: string;
                         finalVerdict: "Uphold Original" | "Overturn to Not Guilty" | "Modify Level";
                         newLevelOfOffence?: string;
+                        newCategoryOfOffence?: string;
+                        newSubCategoryOfOffence?: string;
                         punishment?: string;
                     },
                     session.user.email
