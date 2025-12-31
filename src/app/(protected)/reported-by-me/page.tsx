@@ -49,7 +49,12 @@ interface SelectedUser {
     status?: string;
 }
 
+import { useSession } from "next-auth/react";
+
+// ...
+
 export default function ReportedByMePage() {
+    const { data: session } = useSession();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -71,6 +76,9 @@ export default function ReportedByMePage() {
     const [description, setDescription] = useState("");
     const [selectedUsers, setSelectedUsers] = useState<SelectedUser[]>([]);
     const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+    const [relayedFromCompany, setRelayedFromCompany] = useState(false);
+    const [companyName, setCompanyName] = useState("");
+    const [companyNotes, setCompanyNotes] = useState("");
 
     // Search dropdown states
     const [searchQuery, setSearchQuery] = useState("");
@@ -199,6 +207,9 @@ export default function ReportedByMePage() {
         setUploadedFiles([]);
         setSearchQuery("");
         setSearchResults([]);
+        setRelayedFromCompany(false);
+        setCompanyName("");
+        setCompanyNotes("");
     }
 
     function closeCreateModal() {
@@ -238,6 +249,7 @@ export default function ReportedByMePage() {
         if (!dateTimeOfIncident) { setError("Please select the date and time of incident"); return; }
         if (description.trim().length < 40) { setError("Please provide a description of at least 40 characters"); return; }
         if (selectedUsers.length === 0) { setError("Please add at least one reported individual"); return; }
+        if (relayedFromCompany && !companyName.trim()) { setError("Company Name is required when 'Relayed from Company' is checked"); return; }
 
         setSaving(true);
         setError("");
@@ -255,6 +267,9 @@ export default function ReportedByMePage() {
                     description,
                     reportedIndividuals: selectedUsers.map((u) => u.email),
                     attachments: [], // Empty initially
+                    relayedFromCompany,
+                    companyName: relayedFromCompany ? companyName : undefined,
+                    companyNotes: relayedFromCompany ? companyNotes : undefined,
                 }),
             });
 
@@ -440,6 +455,28 @@ export default function ReportedByMePage() {
                                 )}
                             </div>
                         </div>
+
+                        {/* Conditional Rendering for Relayed from Company */}
+                        {session?.user?.role && ["admin", "approver", "investigator", "reporter"].includes(session.user.role.toLowerCase()) && (
+                            <div className="form-group">
+                                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", marginBottom: "0.5rem" }}>
+                                    <input type="checkbox" checked={relayedFromCompany} onChange={(e) => setRelayedFromCompany(e.target.checked)} style={{ width: "1rem", height: "1rem" }} />
+                                    <span style={{ fontSize: "0.875rem", fontWeight: "500" }}>Relayed from Company</span>
+                                </label>
+                                {relayedFromCompany && (
+                                    <div style={{ paddingLeft: "1.5rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                                        <div>
+                                            <label className="label" style={{ fontSize: "0.75rem", marginBottom: "0.25rem" }}>Company Name <span style={{ color: "var(--destructive)" }}>*</span></label>
+                                            <input type="text" className="input" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Enter Company Name" />
+                                        </div>
+                                        <div>
+                                            <label className="label" style={{ fontSize: "0.75rem", marginBottom: "0.25rem" }}>Remarks (Optional)</label>
+                                            <textarea className="input textarea" value={companyNotes} onChange={(e) => setCompanyNotes(e.target.value)} placeholder="Additional remarks..." style={{ minHeight: "80px" }} />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="form-group">
                             <label className="label">Attachments (Optional)</label>

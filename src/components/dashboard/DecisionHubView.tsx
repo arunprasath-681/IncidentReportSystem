@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Scale, Eye, X, Check, RotateCcw, FileText, Activity, Gavel, Pencil, Plus } from "lucide-react";
+import { Scale, Eye, X, Check, RotateCcw, FileText, Activity, Gavel, Pencil, Plus, History, ChevronDown, ChevronUp, AlertCircle, AlertTriangle, CheckCircle, Search } from "lucide-react";
 import { type CaseStatus } from "@/lib/sheets/cases";
 import { SUB_CATEGORIES } from "@/lib/constants";
 
@@ -50,7 +50,7 @@ export default function DecisionHubView() {
     // Modal state
     const [selectedCase, setSelectedCase] = useState<Case | null>(null);
     const [modalMode, setModalMode] = useState<"verdict" | "appeal" | "view" | null>(null);
-    const [activeModalTab, setActiveModalTab] = useState<"incident" | "investigation" | "resolution">("investigation");
+    const [activeModalTab, setActiveModalTab] = useState<"incident" | "investigation" | "resolution" | "past_cases">("investigation");
     const [incidentData, setIncidentData] = useState<Incident | null>(null);
     const [loadingIncident, setLoadingIncident] = useState(false);
 
@@ -109,7 +109,7 @@ export default function DecisionHubView() {
         }
     }
 
-    function openModal(caseData: Case, mode: "verdict" | "appeal" | "view", defaultTab: "incident" | "investigation" | "resolution" = "investigation") {
+    function openModal(caseData: Case, mode: "verdict" | "appeal" | "view", defaultTab: "incident" | "investigation" | "resolution" | "past_cases" = "investigation") {
         setSelectedCase(caseData);
         setModalMode(mode);
         setActiveModalTab(defaultTab);
@@ -460,6 +460,13 @@ export default function DecisionHubView() {
                                 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
                             >
                                 <Gavel size={14} /> Verdict
+                            </button>
+                            <button
+                                className={`tab ${activeModalTab === "past_cases" ? "active" : ""}`}
+                                onClick={() => setActiveModalTab("past_cases")}
+                                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                            >
+                                <History size={14} /> Past Cases
                             </button>
                         </div>
 
@@ -822,10 +829,9 @@ export default function DecisionHubView() {
                                                 </div>
                                             )}
 
-                                            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)" }}>
+                                            <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid var(--border)", justifyContent: "flex-end" }}>
                                                 <button onClick={handleResolveAppeal} className="btn btn-primary" disabled={saving}>
-                                                    {saving ? <div className="spinner" style={{ width: "1rem", height: "1rem" }}></div> : <Check size={16} />}
-                                                    Resolve Appeal
+                                                    {saving ? "Saving..." : "Submit Resolution"}
                                                 </button>
                                             </div>
                                         </>
@@ -879,6 +885,15 @@ export default function DecisionHubView() {
                                         </div>
                                     )}
                                 </div>
+                            )}
+
+                            {/* Past Cases Tab */}
+                            {activeModalTab === "past_cases" && (
+                                <PastCasesList
+                                    currentCaseId={selectedCase.case_id}
+                                    reportedIndividualId={selectedCase.reported_individual_id}
+                                    allCases={cases}
+                                />
                             )}
                         </div>
                     </div>
@@ -982,6 +997,150 @@ export default function DecisionHubView() {
                         )}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    );
+}
+
+function PastCasesList({ currentCaseId, reportedIndividualId, allCases }: { currentCaseId: string, reportedIndividualId: string, allCases: Case[] }) {
+    const pastCases = allCases
+        .filter(c => c.reported_individual_id === reportedIndividualId && c.case_id !== currentCaseId)
+        .sort((a, b) => b.case_id.localeCompare(a.case_id));
+
+    const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null);
+
+    const toggleExpand = (id: string) => {
+        setExpandedCaseId(expandedCaseId === id ? null : id);
+    };
+
+    if (pastCases.length === 0) {
+        return (
+            <div style={{ textAlign: "center", padding: "3rem", color: "var(--muted-foreground)" }}>
+                <History size={32} style={{ marginBottom: "0.5rem", opacity: 0.5 }} />
+                <p>No past cases found for this individual.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)", marginBottom: "0.5rem" }}>
+                Found {pastCases.length} other case{pastCases.length !== 1 ? "s" : ""} for <strong>{reportedIndividualId}</strong>
+            </p>
+            {pastCases.map(c => (
+                <div key={c.case_id} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                    <button
+                        onClick={() => toggleExpand(c.case_id)}
+                        style={{
+                            width: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "1rem",
+                            backgroundColor: "var(--muted)",
+                            border: "none",
+                            cursor: "pointer",
+                            textAlign: "left"
+                        }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                            <span style={{ fontWeight: "600", fontSize: "0.9rem" }}>{c.case_id}</span>
+                            <span className={`badge ${c.case_status === "Final Decision" ? "badge-closed" : "badge-open"}`} style={{ fontSize: "0.7rem", padding: "0.1rem 0.4rem" }}>
+                                {c.case_status}
+                            </span>
+                        </div>
+                        {expandedCaseId === c.case_id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+
+                    {expandedCaseId === c.case_id && (
+                        <div style={{ padding: "1.5rem", backgroundColor: "var(--card)" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+                                {/* Investigation */}
+                                <TimelineItem
+                                    icon={<Search size={14} />}
+                                    title="Investigation"
+                                    isLast={false}
+                                    statusColor={c.case_status !== "Pending Investigation" ? "var(--primary)" : "var(--muted)"}
+                                >
+                                    <p style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>Status: <span className="badge badge-open">{c.case_status === "Pending Investigation" ? "In Progress" : "Completed"}</span></p>
+                                    {c.case_comments && (
+                                        <div style={{ marginTop: "0.5rem", padding: "0.75rem", backgroundColor: "var(--muted)", borderRadius: "var(--radius)", fontSize: "0.875rem", fontStyle: "italic" }}>"{c.case_comments}"</div>
+                                    )}
+                                </TimelineItem>
+
+                                {/* Verdict */}
+                                {(c.verdict || c.case_status !== "Pending Investigation") && (
+                                    <TimelineItem
+                                        icon={<FileText size={14} />}
+                                        title="Verdict"
+                                        isLast={!c.appeal_reason && c.case_status !== "Appealed"}
+                                        statusColor={c.verdict ? "var(--primary)" : "var(--muted)"}
+                                    >
+                                        {c.verdict ? (
+                                            <div style={{ marginTop: "0.5rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                                                <div style={{ padding: "0.75rem", backgroundColor: c.verdict === "Guilty" ? "rgba(239, 68, 68, 0.1)" : "rgba(34, 197, 94, 0.1)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>
+                                                    <span style={{ fontWeight: "600", color: c.verdict === "Guilty" ? "var(--destructive)" : "var(--success)" }}>{c.verdict}</span>
+                                                    {c.punishment && <span style={{ fontSize: "0.8rem" }}>{c.punishment}</span>}
+                                                </div>
+                                                <div style={{ padding: "1rem", backgroundColor: "var(--card)", fontSize: "0.875rem" }}>
+                                                    <p><span style={{ color: "var(--muted-foreground)" }}>Category:</span> {c.category_of_offence}</p>
+                                                    <p><span style={{ color: "var(--muted-foreground)" }}>Level:</span> {c.level_of_offence}</p>
+                                                </div>
+                                            </div>
+                                        ) : <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>Waiting for decision...</p>}
+                                    </TimelineItem>
+                                )}
+
+                                {/* Appeal */}
+                                {(c.appeal_reason || c.case_status === "Appealed" || c.case_status === "Final Decision") && c.appeal_reason && (
+                                    <TimelineItem
+                                        icon={<AlertTriangle size={14} />}
+                                        title="Appeal"
+                                        isLast={c.case_status !== "Final Decision"}
+                                        statusColor="var(--warning)"
+                                    >
+                                        <div style={{ marginTop: "0.5rem", backgroundColor: "var(--muted)", padding: "1rem", borderRadius: "var(--radius)" }}>
+                                            <p style={{ fontSize: "0.875rem", fontStyle: "italic" }}>"{c.appeal_reason}"</p>
+                                        </div>
+                                    </TimelineItem>
+                                )}
+
+                                {/* Final Decision */}
+                                {c.case_status === "Final Decision" && (
+                                    <TimelineItem
+                                        icon={<CheckCircle size={14} />}
+                                        title="Final Decision"
+                                        isLast={true}
+                                        statusColor="var(--success)"
+                                    >
+                                        <p style={{ marginTop: "0.25rem", color: "var(--success)", fontWeight: "500" }}>Case Closed</p>
+                                        {c.review_comments && <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>Review: {c.review_comments}</p>}
+                                    </TimelineItem>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function TimelineItem({ icon, title, date, children, isLast, statusColor }: { icon: React.ReactNode, title: string, date?: string, children: React.ReactNode, isLast: boolean, statusColor: string }) {
+    return (
+        <div style={{ display: "flex", gap: "1rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div style={{ width: "2rem", height: "2rem", borderRadius: "50%", backgroundColor: statusColor, color: "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, zIndex: 2 }}>
+                    {icon}
+                </div>
+                {!isLast && <div style={{ width: "2px", flexGrow: 1, backgroundColor: "var(--border)", minHeight: "2rem" }}></div>}
+            </div>
+            <div style={{ paddingBottom: "2rem", width: "100%" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h4 style={{ fontWeight: "600", fontSize: "1rem" }}>{title}</h4>
+                    {date && <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>{date}</span>}
+                </div>
+                {children}
             </div>
         </div>
     );
