@@ -21,6 +21,7 @@ const ROLE_OPTIONS = [
     { value: "approver", label: "Approver" },
     { value: "investigator", label: "Investigator" },
     { value: "campus manager", label: "Campus Manager" },
+    { value: "reporter", label: "Reporter" },
     { value: "student", label: "Student" },
 ];
 
