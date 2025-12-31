@@ -16,6 +16,7 @@ export type UserRole =
     | "approver"
     | "investigator"
     | "campus manager"
+    | "reporter"
     | "student"
     | "not_authorized";
 
@@ -73,7 +74,7 @@ export async function getUserRoleWithToken(
     const spreadsheetId = getSpreadsheetId();
 
     try {
-        // Check OtherUsers table first (Admin, Approver, Investigator)
+        // Check OtherUsers table first (Admin, Approver, Investigator, Reporter)
         const otherUsersResponse = await sheets.spreadsheets.values.get({
             spreadsheetId,
             range: "OtherUsers!A:F",
@@ -97,7 +98,7 @@ export async function getUserRoleWithToken(
 
                 const roleVal = getCaseInsensitive(otherUser, "role");
                 const roleLower = roleVal?.trim().toLowerCase() || "";
-                if (["admin", "approver", "investigator"].includes(roleLower)) {
+                if (["admin", "approver", "investigator", "reporter"].includes(roleLower)) {
                     return {
                         role: roleLower as UserRole,
                         name: getCaseInsensitive(otherUser, "name") || otherUser.name,
@@ -218,7 +219,7 @@ export async function getAllAuthorizedUsers(
             users.forEach((u) => {
                 const uEmail = getCaseInsensitive(u, "email");
                 const uRole = getCaseInsensitive(u, "role");
-                if (uEmail && ["admin", "approver", "investigator"].includes(uRole?.toLowerCase() || "")) {
+                if (uEmail && ["admin", "approver", "investigator", "reporter"].includes(uRole?.toLowerCase() || "")) {
                     results.push({
                         email: uEmail,
                         name: getCaseInsensitive(u, "name") || u.name,
