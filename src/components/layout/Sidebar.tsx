@@ -51,8 +51,8 @@ export default function Sidebar() {
         label: "Reported Against Me",
     });
 
-    // Investigation Hub - investigator, campus manager, admin
-    if (["investigator", "campus manager", "admin"].includes(role)) {
+    // Investigation Hub - investigator, campus manager, admin, approver
+    if (["investigator", "campus manager", "admin", "approver"].includes(role)) {
         menuItems.push({
             href: "/investigation-hub",
             icon: Search,
@@ -60,8 +60,8 @@ export default function Sidebar() {
         });
     }
 
-    // Decision Hub - approver, admin
-    if (["approver", "admin"].includes(role)) {
+    // Decision Hub - approver, admin, campus manager
+    if (["approver", "admin", "campus manager"].includes(role)) {
         menuItems.push({
             href: "/decision-hub",
             icon: Scale,

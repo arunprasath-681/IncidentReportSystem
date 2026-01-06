@@ -28,6 +28,9 @@ interface Case {
     appeal_attachments?: string;
     investigator_attachments?: string;
     approver_attachments?: string;
+    investigated_by?: string;
+    verdict_by?: string;
+    appeal_resolved_by?: string;
 }
 
 interface Incident {
@@ -646,6 +649,10 @@ export default function DecisionHubView() {
                                                     <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Campus / Squad</span>
                                                     <p>{selectedCase.campus || "-"} / {selectedCase.squad || "-"}</p>
                                                 </div>
+                                                <div>
+                                                    <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Investigated By</span>
+                                                    <p>{selectedCase.investigated_by || "-"}</p>
+                                                </div>
                                             </div>
 
                                             {selectedCase.case_comments && (
@@ -774,6 +781,22 @@ export default function DecisionHubView() {
                                                 </div>
                                             </div>
 
+
+                                            {/* Audit Trail - Verdict */}
+                                            {selectedCase.verdict_by && (
+                                                <div style={{ marginBottom: "1rem" }}>
+                                                    <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Verdict Recorded By</span>
+                                                    <p style={{ fontSize: "0.875rem", fontWeight: "500" }}>{selectedCase.verdict_by}</p>
+                                                </div>
+                                            )}
+
+                                            {/* Audit Trail - Appeal Resolution */}
+                                            {selectedCase.appeal_resolved_by && (
+                                                <div style={{ marginBottom: "1rem" }}>
+                                                    <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Appeal Resolved By</span>
+                                                    <p style={{ fontSize: "0.875rem", fontWeight: "500" }}>{selectedCase.appeal_resolved_by}</p>
+                                                </div>
+                                            )}
                                             {/* File Upload UI */}
                                             <div className="form-group">
                                                 <label className="label">Attachments (Optional)</label>
@@ -939,6 +962,12 @@ export default function DecisionHubView() {
                                                     <p style={{ whiteSpace: "pre-wrap" }}>{selectedCase.review_comments}</p>
                                                 </div>
                                             )}
+                                            {selectedCase.verdict_by && (
+                                                <div>
+                                                    <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Verdict Recorded By</span>
+                                                    <p style={{ fontSize: "0.875rem", fontWeight: "500" }}>{selectedCase.verdict_by}</p>
+                                                </div>
+                                            )}
                                             {/* Show Approver Attachments in View Mode if any */}
                                             {parseAttachments(selectedCase.approver_attachments).length > 0 && (
                                                 <div>
@@ -981,7 +1010,8 @@ export default function DecisionHubView() {
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             <div className="page-header">
                 <div>
@@ -1081,7 +1111,7 @@ export default function DecisionHubView() {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </div >
     );
 }
 
@@ -1098,7 +1128,7 @@ function PastCasesList({ currentCaseId, reportedIndividualId, allCases }: { curr
 
     if (pastCases.length === 0) {
         return (
-            <div style={{ textAlign: "center", padding: "3rem", color: "var(--muted-foreground)" }}>
+            <div style={{ textAlign: "center", padding: "3rem", color: "var(--muted-foreground)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                 <History size={32} style={{ marginBottom: "0.5rem", opacity: 0.5 }} />
                 <p>No past cases found for this individual.</p>
             </div>

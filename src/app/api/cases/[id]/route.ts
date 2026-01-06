@@ -105,8 +105,8 @@ export async function PATCH(
 
         switch (action) {
             case "submit_investigation": {
-                if (!["investigator", "campus manager", "admin"].includes(role)) {
-                    return NextResponse.json({ error: "Forbidden - not an investigator" }, { status: 403 });
+                if (!["investigator", "campus manager", "admin", "approver"].includes(role)) {
+                    return NextResponse.json({ error: "Forbidden - action not allowed for this role" }, { status: 403 });
                 }
                 const data = investigationSchema.parse(body.data);
                 updatedCase = await submitInvestigation(
@@ -119,8 +119,8 @@ export async function PATCH(
             }
 
             case "record_verdict": {
-                if (!["approver", "admin"].includes(role)) {
-                    return NextResponse.json({ error: "Forbidden - not an approver" }, { status: 403 });
+                if (!["approver", "admin", "campus manager"].includes(role)) {
+                    return NextResponse.json({ error: "Forbidden - not an approver or campus manager" }, { status: 403 });
                 }
                 const data = verdictSchema.parse(body.data);
                 updatedCase = await recordVerdict(
@@ -147,21 +147,29 @@ export async function PATCH(
                 // Send Email Notification
                 if (updatedCase && updatedCase.reported_individual_id && updatedCase.incident_id) {
                     const incident = await getIncidentById(session.accessToken, updatedCase.incident_id);
-                    await sendStatusUpdateEmail(
-                        updatedCase.reported_individual_id,
-                        updatedCase.incident_id,
-                        updatedCase.case_id,
-                        updatedCase.case_status,
-                        {
-                            description: incident?.description || "",
-                            dateTime: incident?.date_time_of_incident || "",
-                            category: updatedCase.category_of_offence,
-                            subCategory: updatedCase.sub_category_of_offence,
-                            level: updatedCase.level_of_offence,
-                            verdict: updatedCase.verdict
-                        },
-                        data.attachments || []
-                    );
+
+                    const recipients = [updatedCase.reported_individual_id];
+                    if (incident?.complainant_id && incident.complainant_id !== updatedCase.reported_individual_id) {
+                        recipients.push(incident.complainant_id);
+                    }
+
+                    for (const email of recipients) {
+                        await sendStatusUpdateEmail(
+                            email,
+                            updatedCase.incident_id,
+                            updatedCase.case_id,
+                            updatedCase.case_status,
+                            {
+                                description: incident?.description || "",
+                                dateTime: incident?.date_time_of_incident || "",
+                                category: updatedCase.category_of_offence,
+                                subCategory: updatedCase.sub_category_of_offence,
+                                level: updatedCase.level_of_offence,
+                                verdict: updatedCase.verdict
+                            },
+                            data.attachments || []
+                        );
+                    }
                 }
                 break;
             }
@@ -191,14 +199,17 @@ export async function PATCH(
                     );
 
                     // 2. Notify authorized users (approvers/investigators)
-                    const authorizedUsers = await getAllAuthorizedUsers(session.accessToken);
-                    const recipients = authorizedUsers
-                        .filter(u => ["investigator", "approver", "admin"].includes(u.role.toLowerCase()))
-                        .map(u => u.email);
+                    // We only notify the specific investigator and approver involved in this case
+                    const recipients: string[] = [];
+                    if (updatedCase.investigated_by) recipients.push(updatedCase.investigated_by);
+                    if (updatedCase.verdict_by) recipients.push(updatedCase.verdict_by);
 
-                    if (recipients.length > 0) {
+                    // Deduplicate
+                    const uniqueRecipients = Array.from(new Set(recipients)).filter(email => email); // Ensure no empty strings
+
+                    if (uniqueRecipients.length > 0) {
                         await sendAppealNotificationEmail(
-                            recipients,
+                            uniqueRecipients,
                             updatedCase.incident_id,
                             session.user.email,
                             updatedCase.case_id,
@@ -211,8 +222,8 @@ export async function PATCH(
             }
 
             case "resolve_appeal": {
-                if (!["approver", "admin"].includes(role)) {
-                    return NextResponse.json({ error: "Forbidden - not an approver" }, { status: 403 });
+                if (!["approver", "admin", "campus manager"].includes(role)) {
+                    return NextResponse.json({ error: "Forbidden - not an approver or campus manager" }, { status: 403 });
                 }
                 const data = resolveAppealSchema.parse(body.data);
                 updatedCase = await resolveAppeal(
@@ -241,27 +252,35 @@ export async function PATCH(
                 // Send Email Notification (Final Decision)
                 if (updatedCase && updatedCase.reported_individual_id && updatedCase.incident_id) {
                     const incident = await getIncidentById(session.accessToken, updatedCase.incident_id);
-                    await sendStatusUpdateEmail(
-                        updatedCase.reported_individual_id,
-                        updatedCase.incident_id,
-                        updatedCase.case_id,
-                        updatedCase.case_status,
-                        {
-                            description: incident?.description || "",
-                            dateTime: incident?.date_time_of_incident || "",
-                            category: updatedCase.category_of_offence,
-                            subCategory: updatedCase.sub_category_of_offence,
-                            level: updatedCase.level_of_offence,
-                            verdict: updatedCase.verdict
-                        }
-                    );
+
+                    const recipients = [updatedCase.reported_individual_id];
+                    if (incident?.complainant_id && incident.complainant_id !== updatedCase.reported_individual_id) {
+                        recipients.push(incident.complainant_id);
+                    }
+
+                    for (const email of recipients) {
+                        await sendStatusUpdateEmail(
+                            email,
+                            updatedCase.incident_id,
+                            updatedCase.case_id,
+                            updatedCase.case_status,
+                            {
+                                description: incident?.description || "",
+                                dateTime: incident?.date_time_of_incident || "",
+                                category: updatedCase.category_of_offence,
+                                subCategory: updatedCase.sub_category_of_offence,
+                                level: updatedCase.level_of_offence,
+                                verdict: updatedCase.verdict
+                            }
+                        );
+                    }
                 }
                 break;
             }
 
             case "request_more_investigation": {
-                if (!["approver", "admin"].includes(role)) {
-                    return NextResponse.json({ error: "Forbidden - not an approver" }, { status: 403 });
+                if (!["approver", "admin", "campus manager"].includes(role)) {
+                    return NextResponse.json({ error: "Forbidden - not an approver or campus manager" }, { status: 403 });
                 }
 
                 // 1. Get current case data to find who worked on it
@@ -288,8 +307,8 @@ export async function PATCH(
             }
 
             case "save_draft": {
-                if (!["investigator", "campus manager", "admin"].includes(role)) {
-                    return NextResponse.json({ error: "Forbidden - not an investigator" }, { status: 403 });
+                if (!["investigator", "campus manager", "admin", "approver"].includes(role)) {
+                    return NextResponse.json({ error: "Forbidden - action not allowed for this role" }, { status: 403 });
                 }
                 // Save draft without changing status
                 updatedCase = await updateCase(

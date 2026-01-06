@@ -39,6 +39,9 @@ export interface Case {
     last_updated_by: string;
     last_updated_at: string;
     metadata_changelog: string; // JSON object for changelog
+    investigated_by?: string;
+    verdict_by?: string;
+    appeal_resolved_by?: string;
 }
 
 export interface CreateCaseInput {
@@ -68,6 +71,76 @@ async function getSheetHeaders(
         range: `${sheetName}!1:1`,
     });
     return (response.data.values?.[0] as string[]) || [];
+}
+
+const REQUIRED_HEADERS = [
+    "case_id",
+    "incident_id",
+    "reported_individual_id",
+    "squad",
+    "campus",
+    "category_of_offence",
+    "sub_category_of_offence",
+    "level_of_offence",
+    "case_comments",
+    "attachments",
+    "verdict",
+    "punishment",
+    "case_status",
+    "appeal_reason",
+    "appeal_submitted_at",
+    "appeal_attachments",
+    "investigator_attachments",
+    "approver_attachments",
+    "review_comments",
+    "last_updated_by",
+    "last_updated_at",
+    "metadata_changelog",
+    "investigated_by",
+    "verdict_by",
+    "appeal_resolved_by"
+];
+
+async function ensureHeaders(sheets: sheets_v4.Sheets): Promise<string[]> {
+    const currentHeaders = await getSheetHeaders(sheets, "Cases");
+    const missingHeaders = REQUIRED_HEADERS.filter(h => !currentHeaders.includes(h));
+
+    if (missingHeaders.length > 0) {
+        console.log("Adding missing headers to Cases sheet:", missingHeaders);
+        const spreadsheetId = getSpreadsheetId();
+
+        // Append missing headers to the next available columns in Row 1
+        const startColIndex = currentHeaders.length;
+        const startColChar = String.fromCharCode(65 + startColIndex); // A=65. Works for A-Z. IF columns > 26, logic needs checking.
+        // Simple letter conversion for < 26 columns?
+        // Let's assume < 26 custom columns addition for now or simply update the entire header row?
+        // Safer to APPEND.
+        // Actually, just updating Range 1:1 with NEW full set is safer/easier if we preserve order?
+        // But we want to preserve existing data columns.
+
+        // Let's just append.
+        const values = [missingHeaders];
+        // Calculate range start. E.g. if length is 3 (A,B,C), next is D.
+        // Column letter logic:
+        // 0->A, 25->Z, 26->AA.
+        // Only robust way involves specific column logic, but for now assuming we won't exceed Z for simpler logic?
+        // existing header length.
+
+        // Alternative: Just Read A1:Z1, Update A1:Z1 with [...current, ...missing]
+
+        await sheets.spreadsheets.values.update({
+            spreadsheetId,
+            range: `Cases!1:1`, // Update the entire first row
+            valueInputOption: "RAW",
+            requestBody: {
+                values: [[...currentHeaders, ...missingHeaders]]
+            }
+        });
+
+        return [...currentHeaders, ...missingHeaders];
+    }
+
+    return currentHeaders;
 }
 
 // Convert object to row based on actual sheet headers
@@ -105,7 +178,8 @@ export async function createCase(
     const spreadsheetId = getSpreadsheetId();
 
     // Get actual headers from the sheet
-    const headers = await getSheetHeaders(sheets, "Cases");
+    // Ensure headers exist (auto-migration)
+    const headers = await ensureHeaders(sheets);
 
     // Generate Sequential ID
     const newId = await generateNextCaseId(sheets, spreadsheetId, input.incidentId);
@@ -141,6 +215,9 @@ export async function createCase(
                 },
             ],
         }),
+        investigated_by: "",
+        verdict_by: "",
+        appeal_resolved_by: "",
     };
 
     const row = objectToRowDynamic(headers, newCase as unknown as Record<string, unknown>);
@@ -303,7 +380,8 @@ export async function updateCase(
     const spreadsheetId = getSpreadsheetId();
 
     // Get actual headers from the sheet
-    const headers = await getSheetHeaders(sheets, "Cases");
+    // Ensure headers exist (auto-migration)
+    const headers = await ensureHeaders(sheets);
 
     const rowIndex = await findRowIndex(sheets, "Cases", "case_id", caseId);
     if (!rowIndex) return null;
@@ -379,6 +457,7 @@ export async function submitInvestigation(
             case_comments: data.caseComments,
             investigator_attachments: JSON.stringify(data.attachments || []),
             case_status: "Investigation Submitted",
+            investigated_by: submittedBy,
         },
         submittedBy
     );
@@ -405,6 +484,7 @@ export async function recordVerdict(
         verdict: data.verdict,
         punishment: data.punishment || "",
         approver_attachments: JSON.stringify(data.attachments || []),
+        verdict_by: recordedBy,
     };
 
     if (data.newLevelOfOffence) updates.level_of_offence = data.newLevelOfOffence;
@@ -490,6 +570,7 @@ export async function resolveAppeal(
     const updates: Partial<Case> = {
         review_comments: data.reviewComments,
         case_status: "Final Decision",
+        appeal_resolved_by: resolvedBy,
     };
 
     if (data.finalVerdict === "Overturn to Not Guilty") {

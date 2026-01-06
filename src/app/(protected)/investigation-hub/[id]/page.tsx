@@ -726,13 +726,11 @@ export default function InvestigationIncidentPage({
                                                 <button onClick={() => setPreviewCase(c)} className="btn btn-ghost" style={{ padding: "0.375rem 0.5rem" }} title="Preview">
                                                     <Eye size={16} />
                                                 </button>
-                                                {c.case_status === "Pending Investigation" &&
-                                                    (session?.user?.role as string) !== "campus manager" &&
-                                                    (session?.user?.role as string) !== "campus_manager" && (
-                                                        <button onClick={() => openEditModal(c)} className="btn btn-ghost" style={{ padding: "0.375rem 0.5rem" }} title="Edit">
-                                                            <Edit size={16} />
-                                                        </button>
-                                                    )}
+                                                {c.case_status === "Pending Investigation" && (
+                                                    <button onClick={() => openEditModal(c)} className="btn btn-ghost" style={{ padding: "0.375rem 0.5rem" }} title="Edit">
+                                                        <Edit size={16} />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

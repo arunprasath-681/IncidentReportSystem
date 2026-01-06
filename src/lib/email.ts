@@ -92,7 +92,7 @@ export async function sendStatusUpdateEmail(
     // Logic for displaying specific details based on status
     let statusMessage = "";
     if (status === "Verdict Given") {
-        statusMessage = "A verdict has been recorded for your case. If you have been found Guilty, you may be eligible to appeal within 7 days.";
+        statusMessage = "A verdict has been recorded for this case. If the reported individual has been found Guilty, they may be eligible to appeal within 7 days.";
     } else if (status === "Final Decision") {
         statusMessage = "A final decision has been reached for your case. This decision is final and cannot be appealed further.";
     } else if (status === "Appealed") {

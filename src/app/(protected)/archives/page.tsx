@@ -261,6 +261,7 @@ export default function ArchivesPage() {
                                                 statusColor={activeCase.case_status !== "Pending Investigation" ? "var(--primary)" : "var(--muted)"}
                                             >
                                                 <p style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>Status: <span className="badge badge-open">{activeCase.case_status === "Pending Investigation" ? "In Progress" : "Completed"}</span></p>
+                                                {activeCase.investigated_by && <p style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Investigated by: {activeCase.investigated_by}</p>}
                                                 {activeCase.case_comments && (
                                                     <div style={{ marginTop: "0.5rem", padding: "0.75rem", backgroundColor: "var(--muted)", borderRadius: "var(--radius)", fontSize: "0.875rem", fontStyle: "italic" }}>"{activeCase.case_comments}"</div>
                                                 )}
@@ -282,16 +283,19 @@ export default function ArchivesPage() {
                                                     statusColor={activeCase.verdict ? "var(--primary)" : "var(--muted)"}
                                                 >
                                                     {activeCase.verdict ? (
-                                                        <div style={{ marginTop: "0.5rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
-                                                            <div style={{ padding: "0.75rem", backgroundColor: activeCase.verdict === "Guilty" ? "rgba(239, 68, 68, 0.1)" : "rgba(34, 197, 94, 0.1)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>
-                                                                <span style={{ fontWeight: "600", color: activeCase.verdict === "Guilty" ? "var(--error)" : "var(--success)" }}>{activeCase.verdict}</span>
-                                                                {activeCase.punishment && <span style={{ fontSize: "0.8rem" }}>{activeCase.punishment}</span>}
+                                                        <>
+                                                            {activeCase.verdict_by && <p style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", marginBottom: "0.5rem" }}>Verdict by: {activeCase.verdict_by}</p>}
+                                                            <div style={{ marginTop: "0.5rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                                                                <div style={{ padding: "0.75rem", backgroundColor: activeCase.verdict === "Guilty" ? "rgba(239, 68, 68, 0.1)" : "rgba(34, 197, 94, 0.1)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between" }}>
+                                                                    <span style={{ fontWeight: "600", color: activeCase.verdict === "Guilty" ? "var(--error)" : "var(--success)" }}>{activeCase.verdict}</span>
+                                                                    {activeCase.punishment && <span style={{ fontSize: "0.8rem" }}>{activeCase.punishment}</span>}
+                                                                </div>
+                                                                <div style={{ padding: "1rem", backgroundColor: "var(--card)", fontSize: "0.875rem" }}>
+                                                                    <p><span style={{ color: "var(--muted-foreground)" }}>Category:</span> {activeCase.category_of_offence}</p>
+                                                                    <p><span style={{ color: "var(--muted-foreground)" }}>Level:</span> {activeCase.level_of_offence}</p>
+                                                                </div>
                                                             </div>
-                                                            <div style={{ padding: "1rem", backgroundColor: "var(--card)", fontSize: "0.875rem" }}>
-                                                                <p><span style={{ color: "var(--muted-foreground)" }}>Category:</span> {activeCase.category_of_offence}</p>
-                                                                <p><span style={{ color: "var(--muted-foreground)" }}>Level:</span> {activeCase.level_of_offence}</p>
-                                                            </div>
-                                                        </div>
+                                                        </>
                                                     ) : <p style={{ fontSize: "0.875rem", color: "var(--muted-foreground)" }}>Waiting for decision...</p>}
                                                 </TimelineItem>
                                             )}
@@ -326,6 +330,7 @@ export default function ArchivesPage() {
                                                     statusColor="var(--success)"
                                                 >
                                                     <p style={{ marginTop: "0.25rem", color: "var(--success)", fontWeight: "500" }}>Case Closed</p>
+                                                    {activeCase.appeal_resolved_by && <p style={{ fontSize: "0.75rem", color: "var(--muted-foreground)" }}>Resolved by: {activeCase.appeal_resolved_by}</p>}
                                                     {activeCase.review_comments && <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>Review: {activeCase.review_comments}</p>}
                                                 </TimelineItem>
                                             )}
